@@ -1,4 +1,32 @@
+.featureTableContainer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    width: 100%;
+}
+
 .featureTable {
     border-collapse: collapse;
     border: 1px solid black;
+}
+
+.fullHeight {
+    height: 100%;
+    width: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+html{
+    min-height: 100%;
+    min-width: 100%;
+    position: relative;
+}
+
+body{
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
 }

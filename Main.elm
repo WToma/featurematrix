@@ -61,7 +61,7 @@ update msg model =
 
 view : a -> Html Msg
 view model =
-    div []
+    div [class "featureTableContainer"]
         -- [ button [ onClick Decrement ] [ text "-" ]
         -- , div [] [ text (toString model) ]
         -- , button [ onClick Increment ] [ text "+" ]
