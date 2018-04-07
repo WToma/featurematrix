@@ -4,6 +4,7 @@ import Html exposing (Html, button, div, text)
 import Html.Events exposing (onClick, onInput)
 import Html.Attributes exposing (class, type_, id, value)
 import Dict exposing (Dict)
+import Json.Encode as JE
 
 
 main : Program Never Model Msg
@@ -97,5 +98,19 @@ view : Model -> Html Msg
 view model =
     div [ class "featureTableContainer" ]
         [ renderFeatureTableGeneric (renderIntersectionEditBox model.intersections) dummyFeatures
-        , text (toString model.intersections)
+        , text (encodeModel model.intersections)
+        ]
+
+
+encodeModel : Dict ( String, String ) String -> String
+encodeModel intersectionValues =
+    JE.encode 4 (JE.list (List.map encodeIntersectionEntry (Dict.toList intersectionValues)))
+
+
+encodeIntersectionEntry : ( ( String, String ), String ) -> JE.Value
+encodeIntersectionEntry ( ( smallerKey, largerKey ), value ) =
+    JE.object
+        [ ( "smallerKey", JE.string smallerKey )
+        , ( "largerKey", JE.string largerKey )
+        , ( "value", JE.string value )
         ]
