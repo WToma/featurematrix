@@ -2,7 +2,7 @@ module Main exposing (..)
 
 import Html exposing (Html, button, div, text)
 import Html.Events exposing (onClick, onInput)
-import Html.Attributes exposing (class, type_, id)
+import Html.Attributes exposing (class, type_, id, value)
 import Dict exposing (Dict)
 
 
@@ -54,14 +54,15 @@ renderFeatureTableGeneric intersectionRenderer features =
                 features
         )
 
-renderIntersectionEditBox: (Feature, Feature) -> Html Msg
-renderIntersectionEditBox (f1, f2) =
+renderIntersectionEditBox: Dict (String, String) String -> (Feature, Feature) -> Html Msg
+renderIntersectionEditBox intersectionValues (f1, f2) =
     let
         smallerId = if f1.featureId < f2.featureId then f1.featureId else f2.featureId
         largerId = if f1.featureId < f2.featureId then f2.featureId else f1.featureId
         inputId = smallerId ++ "_vs_" ++ largerId
+        intersectionValue = Maybe.withDefault "" (Dict.get (smallerId, largerId) intersectionValues)
     in
-        Html.input [type_ "text", id inputId, onInput (IntersectionUpdated smallerId largerId)] []
+        Html.input [type_ "text", id inputId, value intersectionValue, onInput (IntersectionUpdated smallerId largerId)] []
 
 update : Msg -> Model -> Model
 update msg model =
@@ -70,12 +71,8 @@ update msg model =
             { intersections = Dict.insert (smallerId, largerId) newValue model.intersections }
 
 
-view : a -> Html Msg
+view : Model -> Html Msg
 view model =
     div [class "featureTableContainer"]
-        -- [ button [ onClick Decrement ] [ text "-" ]
-        -- , div [] [ text (toString model) ]
-        -- , button [ onClick Increment ] [ text "+" ]
-        -- ]
-        -- [ renderFeatureTable dummyFeatures ]
-        [ renderFeatureTableGeneric renderIntersectionEditBox dummyFeatures]
+        [ renderFeatureTableGeneric (renderIntersectionEditBox model.intersections) dummyFeatures
+        , text (toString model.intersections)]
