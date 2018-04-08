@@ -51,12 +51,6 @@ dummyFeatures =
       }
     ]
 
-
-renderFeatureTable : List Feature -> Html msg
-renderFeatureTable =
-    renderFeatureTableGeneric (\_ -> Html.text "")
-
-
 renderFeatureTableGeneric : (( Feature, Feature ) -> Html msg) -> List Feature -> Html msg
 renderFeatureTableGeneric intersectionRenderer features =
     Html.table [ class "featureTable" ]
@@ -113,17 +107,27 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-    div [ class "featureTableContainer" ]
-        [ renderFeatureTableGeneric (renderIntersectionEditBox model.intersections) dummyFeatures
-        , renderModelInputOutput model
-        ]
+    -- div [ class "featureTableContainer" ]
+    --     [ renderFeatureTableGeneric (renderIntersectionEditBox model.intersections) dummyFeatures
+    --     , renderModelInputOutput model
+    --     ]
+    appContainer
+        (renderModelInputOutput model)
+        (div [ class "featureTableContainer" ] [ renderFeatureTableGeneric (renderIntersectionEditBox model.intersections) dummyFeatures ])
 
+appContainer: Html Msg -> Html Msg -> Html Msg
+appContainer controlPanel mainPanel =
+    div [ class "appContainer "]
+    [
+        div [class "controlPanel"] [controlPanel],
+        div [class "featurePanel"] [mainPanel]
+    ]
 
 renderModelInputOutput : Model -> Html Msg
 renderModelInputOutput model =
-    div []
+    div [class "controlPanelWrapper"]
         [ if model.showSerialized then
-            textarea [ value (encodeModel model.intersections), readonly True ] []
+            textarea [ class "saveLoadBox", value (encodeModel model.intersections), readonly True ] []
           else
             text ""
         , button
