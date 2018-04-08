@@ -5,15 +5,17 @@ import Html.Events exposing (onClick, onInput)
 import Html.Attributes exposing (class, type_, id, value, readonly)
 import Dict exposing (Dict)
 import Json.Encode as JE
+import Json.Decode as JD
 
 
 main : Program Never Model Msg
 main =
-    Html.beginnerProgram { model = { intersections = Dict.empty, showSerialized = False }, view = view, update = update }
+    Html.beginnerProgram { model = { intersections = Dict.empty, parseError = Nothing, showSerialized = False }, view = view, update = update }
 
 
 type alias Model =
     { intersections : Dict ( String, String ) String
+    , parseError: Maybe String
     , showSerialized : Bool
     }
 
@@ -22,6 +24,7 @@ type Msg
     = IntersectionUpdated String String String
     | ShowModel
     | HideModel
+    | SerializedModelUpdated String
 
 
 type alias Feature =
@@ -104,6 +107,12 @@ update msg model =
         ShowModel ->
             { model | showSerialized = True }
 
+        SerializedModelUpdated str ->
+            case decodeModel str of
+                Ok newIntersections ->
+                    { model | intersections = newIntersections, parseError = Nothing }
+                Err jsonParsingFailure ->
+                    { model | parseError = Just jsonParsingFailure}
 
 view : Model -> Html Msg
 view model =
@@ -113,7 +122,15 @@ view model =
     --     ]
     appContainer
         (renderModelInputOutput model)
-        (div [ class "featureTableContainer" ] [ renderFeatureTableGeneric (renderIntersectionEditBox model.intersections) dummyFeatures ])
+        (renderMainArea model)
+
+renderMainArea: Model -> Html Msg
+renderMainArea model =
+    div [ class "featureTableContainer" ]
+    [
+        div [] [text (Maybe.withDefault "" model.parseError)],
+        renderFeatureTableGeneric (renderIntersectionEditBox model.intersections) dummyFeatures
+    ]
 
 appContainer: Html Msg -> Html Msg -> Html Msg
 appContainer controlPanel mainPanel =
@@ -127,7 +144,7 @@ renderModelInputOutput : Model -> Html Msg
 renderModelInputOutput model =
     div [class "controlPanelWrapper"]
         [ if model.showSerialized then
-            textarea [ class "saveLoadBox", value (encodeModel model.intersections), readonly True ] []
+            textarea [ class "saveLoadBox", value (encodeModel model.intersections), readonly False, onInput SerializedModelUpdated ] []
           else
             text ""
         , button
@@ -160,3 +177,20 @@ encodeIntersectionEntry ( ( smallerKey, largerKey ), value ) =
         , ( "largerKey", JE.string largerKey )
         , ( "value", JE.string value )
         ]
+
+decodeModel: String -> Result String (Dict (String, String) String)
+decodeModel = JD.decodeString parseModel
+
+parseModel: JD.Decoder (Dict (String, String) String)
+parseModel =
+    JD.map Dict.fromList (JD.list parseIntersectionEntry)
+
+parseIntersectionEntry: JD.Decoder ((String, String), String)
+parseIntersectionEntry =
+    let
+        mkEntry smallerKey largerKey value = ((smallerKey, largerKey), value)
+        smallerKeyDec = JD.field "smallerKey" JD.string
+        largerKeyDec = JD.field "largerKey" JD.string
+        valueDec = JD.field "value" JD.string
+    in
+        JD.map3 mkEntry smallerKeyDec largerKeyDec valueDec
