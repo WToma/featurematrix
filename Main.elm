@@ -10,11 +10,21 @@ import Json.Decode as JD
 
 main : Program Never Model Msg
 main =
-    Html.beginnerProgram { model = { intersections = Dict.empty, parseError = Nothing, showSerialized = False }, view = view, update = update }
+    Html.beginnerProgram
+        { model =
+            { features = dummyFeatures
+            , intersections = Dict.empty
+            , parseError = Nothing
+            , showSerialized = False
+            }
+        , view = view
+        , update = update
+        }
 
 
 type alias Model =
-    { intersections : Dict ( String, String ) String
+    { features : List Feature
+    , intersections : Dict ( String, String ) String
     , parseError : Maybe String
     , showSerialized : Bool
     }
@@ -132,7 +142,7 @@ renderMainArea : Model -> Html Msg
 renderMainArea model =
     div [ class "featureTableContainer" ]
         [ div [] [ text (Maybe.withDefault "" model.parseError) ]
-        , renderFeatureTableGeneric (renderIntersectionEditBox model.intersections) dummyFeatures
+        , renderFeatureTableGeneric (renderIntersectionEditBox model.intersections) model.features
         ]
 
 
