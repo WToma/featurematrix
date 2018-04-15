@@ -4,6 +4,7 @@ import Html exposing (Html, button, div, text, textarea)
 import Html.Events exposing (onClick, onInput)
 import Html.Attributes exposing (class, type_, id, value, readonly)
 import Dict exposing (Dict)
+import Char
 import Json.Encode as JE
 import Json.Decode as JD
 
@@ -16,6 +17,11 @@ main =
             , intersections = Dict.empty
             , parseError = Nothing
             , showSerialized = False
+            , newFeaturePanelState =
+                { shortName = ""
+                , description = ""
+                , errorAdding = Nothing
+                }
             }
         , view = view
         , update = update
@@ -27,6 +33,11 @@ type alias Model =
     , intersections : Dict ( String, String ) String
     , parseError : Maybe String
     , showSerialized : Bool
+    , newFeaturePanelState :
+        { shortName : String
+        , description : String
+        , errorAdding : Maybe String
+        }
     }
 
 
@@ -35,6 +46,9 @@ type Msg
     | ShowModel
     | HideModel
     | SerializedModelUpdated String
+    | NFPShortNameUpdated String
+    | NFPDescriptionUpdated String
+    | AddNewFeature String String
 
 
 type alias Feature =
@@ -130,6 +144,127 @@ update msg model =
                 Err jsonParsingFailure ->
                     { model | parseError = Just jsonParsingFailure }
 
+        NFPShortNameUpdated str ->
+            let
+                currentNfpState =
+                    model.newFeaturePanelState
+
+                updatedNfpState =
+                    { currentNfpState | shortName = str, errorAdding = Nothing }
+            in
+                { model | newFeaturePanelState = updatedNfpState }
+
+        NFPDescriptionUpdated str ->
+            let
+                currentNfpState =
+                    model.newFeaturePanelState
+
+                updatedNfpState =
+                    { currentNfpState | description = str, errorAdding = Nothing }
+            in
+                { model | newFeaturePanelState = updatedNfpState }
+
+        AddNewFeature shortName description ->
+            case addNewFeature model.features shortName description of
+                Result.Ok newFeatures ->
+                    { model | features = newFeatures }
+
+                Result.Err reason ->
+                    let
+                        currentNfpState =
+                            model.newFeaturePanelState
+
+                        updatedNfpState =
+                            { currentNfpState | errorAdding = Just reason }
+                    in
+                        { model | newFeaturePanelState = updatedNfpState }
+
+
+mapFirst : (a -> a) -> List a -> List a
+mapFirst f xs =
+    case xs of
+        [] ->
+            []
+
+        head :: tail ->
+            (f head) :: tail
+
+
+phraseToCamelCase : String -> String
+phraseToCamelCase phrase =
+    let
+        words =
+            String.words phrase
+
+        firstCharToLower =
+            \s -> String.fromList (mapFirst Char.toLocaleLower (String.toList s))
+
+        firstCharToUpper =
+            \s -> String.fromList (mapFirst Char.toLocaleUpper (String.toList s))
+
+        allFirstUpper =
+            List.map firstCharToUpper words
+
+        camelCaseWords =
+            mapFirst firstCharToLower allFirstUpper
+    in
+        List.foldr (++) "" camelCaseWords
+
+
+getUniqueFeatureId : List String -> String -> Int -> String
+getUniqueFeatureId takens base try =
+    let
+        suffix =
+            if try == 0 then
+                ""
+            else
+                toString try
+
+        candidate =
+            base ++ suffix
+
+        taken =
+            List.any (\x -> x == candidate) takens
+    in
+        if taken then
+            getUniqueFeatureId takens base (try + 1)
+        else
+            candidate
+
+
+addNewFeature : List Feature -> String -> String -> Result String (List Feature)
+addNewFeature currentFeatures newShortName newDescription =
+    let
+        isShortNameEmpty =
+            String.isEmpty newShortName
+
+        isDescriptionEmpty =
+            String.isEmpty newDescription
+
+        isShortNameTaken =
+            List.any (\f -> f.displayName == newShortName) currentFeatures
+    in
+        if (not isShortNameTaken) && (not isDescriptionEmpty) && (not isShortNameEmpty) then
+            Result.Ok
+                (let
+                    featureId =
+                        getUniqueFeatureId (List.map (\f -> f.featureId) currentFeatures) (phraseToCamelCase newShortName) 0
+
+                    newFeature =
+                        { featureId = featureId, displayName = newShortName, description = newDescription }
+                 in
+                    List.append currentFeatures [ newFeature ]
+                )
+        else
+            Result.Err
+                (if isShortNameTaken then
+                    "a feature with this name already exists"
+                 else if isShortNameEmpty then
+                    "the feature name cannot be empty"
+                 else -- isDescriptonEmpty
+                    "the description cannot be empty"
+                )
+
 
 view : Model -> Html Msg
 view model =
@@ -176,6 +311,18 @@ renderModelInputOutput model =
                     "Show"
                 )
             ]
+        , renderFeatureAdd model
+        ]
+
+
+renderFeatureAdd : Model -> Html Msg
+renderFeatureAdd model =
+    div [ class "featureAdd" ]
+        [ text "Add New Feature"
+        , Html.input [ type_ "text", value model.newFeaturePanelState.shortName, onInput NFPShortNameUpdated ] []
+        , textarea [ value model.newFeaturePanelState.description, onInput NFPDescriptionUpdated ] []
+        , button [ onClick (AddNewFeature model.newFeaturePanelState.shortName model.newFeaturePanelState.description) ] [ text "Add Feature" ]
+        , text (Maybe.withDefault "" (Maybe.map (\reason -> "Error Adding New Feature: " ++ reason) model.newFeaturePanelState.errorAdding))
         ]
 
 

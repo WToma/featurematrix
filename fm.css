@@ -58,3 +58,6 @@ body{
     overflow: hidden;
 }
 
+.featureAdd {
+    border: 1px solid black;
+}
