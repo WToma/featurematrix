@@ -61,3 +61,12 @@ body{
 .featureAdd {
     border: 1px solid black;
 }
+
+.newFeatureDescription {
+    max-width: 95%;
+    width: 95%; /* 100% stretches a bit beyond the border*/
+}
+
+.newFeatureName {
+    width: 95%;
+}

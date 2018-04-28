@@ -1,8 +1,8 @@
 module Main exposing (..)
 
-import Html exposing (Html, button, div, text, textarea)
+import Html exposing (Html, button, div, text, textarea, h2)
 import Html.Events exposing (onClick, onInput)
-import Html.Attributes exposing (class, type_, id, value, readonly)
+import Html.Attributes exposing (class, type_, id, value, readonly, placeholder)
 import Dict exposing (Dict)
 import Char
 import Json.Encode as JE
@@ -318,9 +318,9 @@ renderModelInputOutput model =
 renderFeatureAdd : Model -> Html Msg
 renderFeatureAdd model =
     div [ class "featureAdd" ]
-        [ text "Add New Feature"
-        , Html.input [ type_ "text", value model.newFeaturePanelState.shortName, onInput NFPShortNameUpdated ] []
-        , textarea [ value model.newFeaturePanelState.description, onInput NFPDescriptionUpdated ] []
+        [ h2 [] [text "Add New Feature"]
+        , Html.input [ type_ "text", placeholder "Short Name of the New Feature", class "newFeatureName", value model.newFeaturePanelState.shortName, onInput NFPShortNameUpdated ] []
+        , textarea [ class "newFeatureDescription", placeholder "A description of the new feature.", value model.newFeaturePanelState.description, onInput NFPDescriptionUpdated ] []
         , button [ onClick (AddNewFeature model.newFeaturePanelState.shortName model.newFeaturePanelState.description) ] [ text "Add Feature" ]
         , text (Maybe.withDefault "" (Maybe.map (\reason -> "Error Adding New Feature: " ++ reason) model.newFeaturePanelState.errorAdding))
         ]
