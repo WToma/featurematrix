@@ -101,16 +101,25 @@ renderFeatureTableGeneric intersectionRenderer allFeatures =
     let
         featuresToRender =
             List.filter (\f -> f.visible) allFeatures
+
+        hasFeaturesToRender =
+            not (List.isEmpty featuresToRender)
     in
-        Html.table [ class "featureTable" ]
-            (-- header
-             [ Html.tr [] ([ Html.th [ class "featureTable" ] [] ] ++ List.map (\f -> Html.th [ class "featureTable" ] [ renderFeatureHeader f ]) featuresToRender) ]
-                ++ -- rows
-                   List.map
-                    (\f ->
-                        Html.tr [] ([ Html.th [ class "featureTable" ] [ renderFeatureHeader f ] ] ++ List.map (\f2 -> Html.td [ class "featureTable" ] [ intersectionRenderer ( f, f2 ) ]) featuresToRender)
+        div []
+            (if hasFeaturesToRender then
+                [ Html.table [ class "featureTable" ]
+                    (-- header
+                     [ Html.tr [] ([ Html.th [ class "featureTable" ] [] ] ++ List.map (\f -> Html.th [ class "featureTable" ] [ renderFeatureHeader f ]) featuresToRender) ]
+                        ++ -- rows
+                           List.map
+                            (\f ->
+                                Html.tr [] ([ Html.th [ class "featureTable" ] [ renderFeatureHeader f ] ] ++ List.map (\f2 -> Html.td [ class "featureTable" ] [ intersectionRenderer ( f, f2 ) ]) featuresToRender)
+                            )
+                            featuresToRender
                     )
-                    featuresToRender
+                ]
+             else
+                [ text "No features displayed. Add a new feature or show an existing one using the left panel" ]
             )
 
 
