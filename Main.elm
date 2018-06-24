@@ -49,12 +49,14 @@ type Msg
     | NFPShortNameUpdated String
     | NFPDescriptionUpdated String
     | AddNewFeature String String
-
+    | HideFeature String
+    | ShowFeature String
 
 type alias Feature =
     { featureId : String
     , displayName : String
     , description : String
+    , visible : Bool
     }
 
 
@@ -63,39 +65,55 @@ dummyFeatures =
     [ { featureId = "showFeatures"
       , displayName = "Shows Features"
       , description = "Shows features as a Table"
+      , visible = True
       }
     , { featureId = "edit"
       , displayName = "Edit Intersection"
       , description = "Type Features into the Cells of the Table"
+      , visible = True
       }
     , { featureId = "export"
       , displayName = "Export"
       , description = "Export the Current Model into JSON"
+      , visible = True
       }
     , { featureId = "import"
       , displayName = "Import"
       , description = "Import the Model from JSON"
+      , visible = True
       }
     , { featureId = "addFeature"
       , displayName = "Add Feature"
       , description = "A New Feature can be Added With Description"
+      , visible = True
+      }
+    , { featureId = "hideFeature"
+      , displayName = "Hide Feature"
+      , description = "Remove a Feature from the Feature Table, and Provide Button to Show Again"
+      , visible = True
       }
     ]
 
 
-renderFeatureTableGeneric : (( Feature, Feature ) -> Html msg) -> List Feature -> Html msg
-renderFeatureTableGeneric intersectionRenderer features =
-    Html.table [ class "featureTable" ]
-        (-- header
-         [ Html.tr [] ([ Html.th [ class "featureTable" ] [] ] ++ List.map (\f -> Html.th [ class "featureTable" ] [ Html.text f.displayName ]) features) ]
-            ++ -- rows
-               List.map
-                (\f ->
-                    Html.tr [] ([ Html.th [ class "featureTable" ] [ Html.text f.displayName ] ] ++ List.map (\f2 -> Html.td [ class "featureTable" ] [ intersectionRenderer ( f, f2 ) ]) features)
-                )
-                features
-        )
+renderFeatureTableGeneric : (( Feature, Feature ) -> Html Msg) -> List Feature -> Html Msg
+renderFeatureTableGeneric intersectionRenderer allFeatures =
+    let
+        featuresToRender = List.filter (\f -> f.visible) allFeatures
+    in        
+        Html.table [ class "featureTable" ]
+            (-- header
+            [ Html.tr [] ([ Html.th [ class "featureTable" ] [] ] ++ List.map (\f -> Html.th [ class "featureTable" ] [ renderFeatureHeader f ]) featuresToRender) ]
+                ++ -- rows
+                List.map
+                    (\f ->
+                        Html.tr [] ([ Html.th [ class "featureTable" ] [ renderFeatureHeader f ] ] ++ List.map (\f2 -> Html.td [ class "featureTable" ] [ intersectionRenderer ( f, f2 ) ]) featuresToRender)
+                    )
+                    featuresToRender
+            )
 
+renderFeatureHeader : Feature -> Html Msg
+renderFeatureHeader f =
+    Html.div [] [Html.text f.displayName, Html.button [onClick (HideFeature f.featureId)] [text "(hide)"]]
 
 renderIntersectionEditBox : Dict ( String, String ) String -> ( Feature, Feature ) -> Html Msg
 renderIntersectionEditBox intersectionValues ( f1, f2 ) =
@@ -179,6 +197,21 @@ update msg model =
                     in
                         { model | newFeaturePanelState = updatedNfpState }
 
+        HideFeature featureId ->
+            let
+                (featuresToHide, featuresToKeep) = List.partition (\f -> f.featureId == featureId) model.features
+                hiddenFeatures = List.map(\f -> {f | visible = False}) featuresToHide
+                newFeatures = featuresToKeep ++ hiddenFeatures
+            in
+                { model | features = newFeatures}
+                
+        ShowFeature featureId ->
+            let
+                (featuresToShow, featuresToKeep) = List.partition (\f -> f.featureId == featureId) model.features
+                shownFeatures = List.map(\f -> {f | visible = True}) featuresToShow
+                newFeatures = featuresToKeep ++ shownFeatures
+            in
+                {model | features = newFeatures}
 
 mapFirst : (a -> a) -> List a -> List a
 mapFirst f xs =
@@ -251,7 +284,7 @@ addNewFeature currentFeatures newShortName newDescription =
                         getUniqueFeatureId (List.map (\f -> f.featureId) currentFeatures) (phraseToCamelCase newShortName) 0
 
                     newFeature =
-                        { featureId = featureId, displayName = newShortName, description = newDescription }
+                        { featureId = featureId, displayName = newShortName, description = newDescription, visible = True }
                  in
                     List.append currentFeatures [ newFeature ]
                 )
@@ -312,8 +345,17 @@ renderModelInputOutput model =
                 )
             ]
         , renderFeatureAdd model
+        , renderHiddenFeatures model
         ]
 
+renderHiddenFeatures : Model -> Html Msg
+renderHiddenFeatures model =
+    let
+        hiddenFeatures = List.filter (\f -> not f.visible) model.features
+        hiddenFeaturesExist = not (List.isEmpty hiddenFeatures)
+        renderShowFeature = \f -> div [] [text f.displayName, button [onClick (ShowFeature f.featureId)] [text "(show)"]]
+    in
+        div [] (if hiddenFeaturesExist then [h2 [] [text "Features Hidden from Display"]] ++ (List.map renderShowFeature hiddenFeatures) else [])
 
 renderFeatureAdd : Model -> Html Msg
 renderFeatureAdd model =
