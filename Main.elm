@@ -52,6 +52,7 @@ type Msg
     | HideFeature String
     | ShowFeature String
 
+
 type alias Feature =
     { featureId : String
     , displayName : String
@@ -98,22 +99,25 @@ dummyFeatures =
 renderFeatureTableGeneric : (( Feature, Feature ) -> Html Msg) -> List Feature -> Html Msg
 renderFeatureTableGeneric intersectionRenderer allFeatures =
     let
-        featuresToRender = List.filter (\f -> f.visible) allFeatures
-    in        
+        featuresToRender =
+            List.filter (\f -> f.visible) allFeatures
+    in
         Html.table [ class "featureTable" ]
             (-- header
-            [ Html.tr [] ([ Html.th [ class "featureTable" ] [] ] ++ List.map (\f -> Html.th [ class "featureTable" ] [ renderFeatureHeader f ]) featuresToRender) ]
+             [ Html.tr [] ([ Html.th [ class "featureTable" ] [] ] ++ List.map (\f -> Html.th [ class "featureTable" ] [ renderFeatureHeader f ]) featuresToRender) ]
                 ++ -- rows
-                List.map
+                   List.map
                     (\f ->
                         Html.tr [] ([ Html.th [ class "featureTable" ] [ renderFeatureHeader f ] ] ++ List.map (\f2 -> Html.td [ class "featureTable" ] [ intersectionRenderer ( f, f2 ) ]) featuresToRender)
                     )
                     featuresToRender
             )
 
+
 renderFeatureHeader : Feature -> Html Msg
 renderFeatureHeader f =
-    Html.div [] [Html.text f.displayName, Html.button [onClick (HideFeature f.featureId)] [text "(hide)"]]
+    Html.div [] [ Html.text f.displayName, Html.button [ onClick (HideFeature f.featureId) ] [ text "(hide)" ] ]
+
 
 renderIntersectionEditBox : Dict ( String, String ) String -> ( Feature, Feature ) -> Html Msg
 renderIntersectionEditBox intersectionValues ( f1, f2 ) =
@@ -199,19 +203,30 @@ update msg model =
 
         HideFeature featureId ->
             let
-                (featuresToHide, featuresToKeep) = List.partition (\f -> f.featureId == featureId) model.features
-                hiddenFeatures = List.map(\f -> {f | visible = False}) featuresToHide
-                newFeatures = featuresToKeep ++ hiddenFeatures
+                ( featuresToHide, featuresToKeep ) =
+                    List.partition (\f -> f.featureId == featureId) model.features
+
+                hiddenFeatures =
+                    List.map (\f -> { f | visible = False }) featuresToHide
+
+                newFeatures =
+                    featuresToKeep ++ hiddenFeatures
             in
-                { model | features = newFeatures}
-                
+                { model | features = newFeatures }
+
         ShowFeature featureId ->
             let
-                (featuresToShow, featuresToKeep) = List.partition (\f -> f.featureId == featureId) model.features
-                shownFeatures = List.map(\f -> {f | visible = True}) featuresToShow
-                newFeatures = featuresToKeep ++ shownFeatures
+                ( featuresToShow, featuresToKeep ) =
+                    List.partition (\f -> f.featureId == featureId) model.features
+
+                shownFeatures =
+                    List.map (\f -> { f | visible = True }) featuresToShow
+
+                newFeatures =
+                    featuresToKeep ++ shownFeatures
             in
-                {model | features = newFeatures}
+                { model | features = newFeatures }
+
 
 mapFirst : (a -> a) -> List a -> List a
 mapFirst f xs =
@@ -294,7 +309,8 @@ addNewFeature currentFeatures newShortName newDescription =
                     "a feature with this name already exists"
                  else if isShortNameEmpty then
                     "the feature name cannot be empty"
-                 else -- isDescriptonEmpty
+                 else
+                    -- isDescriptonEmpty
                     "the description cannot be empty"
                 )
 
@@ -348,19 +364,31 @@ renderModelInputOutput model =
         , renderHiddenFeatures model
         ]
 
+
 renderHiddenFeatures : Model -> Html Msg
 renderHiddenFeatures model =
     let
-        hiddenFeatures = List.filter (\f -> not f.visible) model.features
-        hiddenFeaturesExist = not (List.isEmpty hiddenFeatures)
-        renderShowFeature = \f -> div [] [text f.displayName, button [onClick (ShowFeature f.featureId)] [text "(show)"]]
+        hiddenFeatures =
+            List.filter (\f -> not f.visible) model.features
+
+        hiddenFeaturesExist =
+            not (List.isEmpty hiddenFeatures)
+
+        renderShowFeature =
+            \f -> div [] [ text f.displayName, button [ onClick (ShowFeature f.featureId) ] [ text "(show)" ] ]
     in
-        div [] (if hiddenFeaturesExist then [h2 [] [text "Features Hidden from Display"]] ++ (List.map renderShowFeature hiddenFeatures) else [])
+        div []
+            (if hiddenFeaturesExist then
+                [ h2 [] [ text "Features Hidden from Display" ] ] ++ (List.map renderShowFeature hiddenFeatures)
+             else
+                []
+            )
+
 
 renderFeatureAdd : Model -> Html Msg
 renderFeatureAdd model =
     div [ class "featureAdd" ]
-        [ h2 [] [text "Add New Feature"]
+        [ h2 [] [ text "Add New Feature" ]
         , Html.input [ type_ "text", placeholder "Short Name of the New Feature", class "newFeatureName", value model.newFeaturePanelState.shortName, onInput NFPShortNameUpdated ] []
         , textarea [ class "newFeatureDescription", placeholder "A description of the new feature.", value model.newFeaturePanelState.description, onInput NFPDescriptionUpdated ] []
         , button [ onClick (AddNewFeature model.newFeaturePanelState.shortName model.newFeaturePanelState.description) ] [ text "Add Feature" ]
