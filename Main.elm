@@ -198,9 +198,9 @@ update msg model =
                 { model | newFeaturePanelState = updatedNfpState }
 
         AddNewFeature shortName description ->
-            case addNewFeature model.features shortName description of
-                Result.Ok newFeatures ->
-                    { model | features = newFeatures }
+            case addNewFeature model.features model.featureVisibility shortName description of
+                Result.Ok (newFeatures, newVisibility) ->
+                    { model | features = newFeatures, featureVisibility = newVisibility }
 
                 Result.Err reason ->
                     let
@@ -277,8 +277,8 @@ getUniqueFeatureId takens base try =
             candidate
 
 
-addNewFeature : List Feature -> String -> String -> Result String (List Feature)
-addNewFeature currentFeatures newShortName newDescription =
+addNewFeature : List Feature -> Dict String Bool -> String -> String -> Result String ((List Feature), Dict String Bool)
+addNewFeature currentFeatures featureVisibility newShortName newDescription =
     let
         isShortNameEmpty =
             String.isEmpty newShortName
@@ -298,7 +298,7 @@ addNewFeature currentFeatures newShortName newDescription =
                     newFeature =
                         { featureId = featureId, displayName = newShortName, description = newDescription }
                  in
-                    List.append currentFeatures [ newFeature ]
+                    (List.append currentFeatures [ newFeature ], Dict.insert featureId True featureVisibility)
                 )
         else
             Result.Err
