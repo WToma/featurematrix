@@ -14,6 +14,7 @@ main =
     Html.beginnerProgram
         { model =
             { features = dummyFeatures
+            , featureVisibility = allFeaturesVisible dummyFeatures
             , intersections = Dict.empty
             , parseError = Nothing
             , showSerialized = False
@@ -30,6 +31,7 @@ main =
 
 type alias Model =
     { features : List Feature
+    , featureVisibility : Dict String Bool
     , intersections : Dict ( String, String ) String
     , parseError : Maybe String
     , showSerialized : Bool
@@ -57,7 +59,6 @@ type alias Feature =
     { featureId : String
     , displayName : String
     , description : String
-    , visible : Bool
     }
 
 
@@ -66,41 +67,42 @@ dummyFeatures =
     [ { featureId = "showFeatures"
       , displayName = "Shows Features"
       , description = "Shows features as a Table"
-      , visible = True
       }
     , { featureId = "edit"
       , displayName = "Edit Intersection"
       , description = "Type Features into the Cells of the Table"
-      , visible = True
       }
     , { featureId = "export"
       , displayName = "Export"
       , description = "Export the Current Model into JSON"
-      , visible = True
       }
     , { featureId = "import"
       , displayName = "Import"
       , description = "Import the Model from JSON"
-      , visible = True
       }
     , { featureId = "addFeature"
       , displayName = "Add Feature"
       , description = "A New Feature can be Added With Description"
-      , visible = True
       }
     , { featureId = "hideFeature"
       , displayName = "Hide Feature"
       , description = "Remove a Feature from the Feature Table, and Provide Button to Show Again"
-      , visible = True
       }
     ]
 
+allFeaturesVisible : List Feature -> Dict String Bool
+allFeaturesVisible features =
+    List.map (\f -> (f.featureId, True)) features |> Dict.fromList
 
-renderFeatureTableGeneric : (( Feature, Feature ) -> Html Msg) -> List Feature -> Html Msg
-renderFeatureTableGeneric intersectionRenderer allFeatures =
+isFeatureVisible : Dict String Bool -> Feature -> Bool
+isFeatureVisible featureVisibilities feature = 
+    Dict.get feature.featureId featureVisibilities |> Maybe.withDefault False
+
+renderFeatureTableGeneric : (( Feature, Feature ) -> Html Msg) -> List Feature -> Dict String Bool -> Html Msg
+renderFeatureTableGeneric intersectionRenderer allFeatures featureVisibilities =
     let
         featuresToRender =
-            List.filter (\f -> f.visible) allFeatures
+            List.filter (isFeatureVisible featureVisibilities) allFeatures
 
         hasFeaturesToRender =
             not (List.isEmpty featuresToRender)
@@ -212,29 +214,15 @@ update msg model =
 
         HideFeature featureId ->
             let
-                ( featuresToHide, featuresToKeep ) =
-                    List.partition (\f -> f.featureId == featureId) model.features
-
-                hiddenFeatures =
-                    List.map (\f -> { f | visible = False }) featuresToHide
-
-                newFeatures =
-                    featuresToKeep ++ hiddenFeatures
+                newFeatureVisibility = Dict.insert featureId False model.featureVisibility
             in
-                { model | features = newFeatures }
+                {model | featureVisibility = newFeatureVisibility }
 
         ShowFeature featureId ->
             let
-                ( featuresToShow, featuresToKeep ) =
-                    List.partition (\f -> f.featureId == featureId) model.features
-
-                shownFeatures =
-                    List.map (\f -> { f | visible = True }) featuresToShow
-
-                newFeatures =
-                    featuresToKeep ++ shownFeatures
+                newFeatureVisibility = Dict.insert featureId True model.featureVisibility
             in
-                { model | features = newFeatures }
+                {model | featureVisibility = newFeatureVisibility }
 
 
 mapFirst : (a -> a) -> List a -> List a
@@ -308,7 +296,7 @@ addNewFeature currentFeatures newShortName newDescription =
                         getUniqueFeatureId (List.map (\f -> f.featureId) currentFeatures) (phraseToCamelCase newShortName) 0
 
                     newFeature =
-                        { featureId = featureId, displayName = newShortName, description = newDescription, visible = True }
+                        { featureId = featureId, displayName = newShortName, description = newDescription }
                  in
                     List.append currentFeatures [ newFeature ]
                 )
@@ -335,7 +323,7 @@ renderMainArea : Model -> Html Msg
 renderMainArea model =
     div [ class "featureTableContainer" ]
         [ div [] [ text (Maybe.withDefault "" model.parseError) ]
-        , renderFeatureTableGeneric (renderIntersectionEditBox model.intersections) model.features
+        , renderFeatureTableGeneric (renderIntersectionEditBox model.intersections) model.features model.featureVisibility
         ]
 
 
@@ -378,7 +366,7 @@ renderHiddenFeatures : Model -> Html Msg
 renderHiddenFeatures model =
     let
         hiddenFeatures =
-            List.filter (\f -> not f.visible) model.features
+            List.filter (\f -> not (isFeatureVisible model.featureVisibility f)) model.features
 
         hiddenFeaturesExist =
             not (List.isEmpty hiddenFeatures)
