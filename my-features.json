@@ -1,0 +1,97 @@
+[
+    {
+        "smallerKey": "addFeature",
+        "largerKey": "addFeature",
+        "value": "There's an area in Table View where I can instruct the program to add a new feature to the project."
+    },
+    {
+        "smallerKey": "addFeature",
+        "largerKey": "edit",
+        "value": "The intersection between a newly added feature and an existing feature, or two newly added features can be edited."
+    },
+    {
+        "smallerKey": "addFeature",
+        "largerKey": "export",
+        "value": "Newly added features are reflected in the model. This is true even if no intersection has been edited since the addition of the new feature (CURRENTLY FAILING)."
+    },
+    {
+        "smallerKey": "addFeature",
+        "largerKey": "hideFeature",
+        "value": "Newly added features can be hidden."
+    },
+    {
+        "smallerKey": "addFeature",
+        "largerKey": "showFeatures",
+        "value": "The feature table immediately reflects the newly added feature."
+    },
+    {
+        "smallerKey": "edit",
+        "largerKey": "edit",
+        "value": "If I type in a field other than the main diagonal, it'll appear in the transposition of the cell I typed into as well."
+    },
+    {
+        "smallerKey": "edit",
+        "largerKey": "export",
+        "value": "If I edit an intersection, it's represented in the exportable model. If I edit an intersection while "
+    },
+    {
+        "smallerKey": "edit",
+        "largerKey": "hideFeature",
+        "value": "Intersections where at least one feature is hidden cannot be edited (obviously). However if a feature has been hidden and then shown, it can be edited again."
+    },
+    {
+        "smallerKey": "edit",
+        "largerKey": "import",
+        "value": "When the text field state (of the export text) is changed, the intersections are reflected in the feature table (as long as the model is valid)."
+    },
+    {
+        "smallerKey": "edit",
+        "largerKey": "showFeatures",
+        "value": "In Table View I can type in an intersection of two features."
+    },
+    {
+        "smallerKey": "export",
+        "largerKey": "export",
+        "value": "There is a button that allows me to view a text representation of my project."
+    },
+    {
+        "smallerKey": "export",
+        "largerKey": "hideFeature",
+        "value": "Hidden features are exported as well."
+    },
+    {
+        "smallerKey": "export",
+        "largerKey": "import",
+        "value": "Exporting and importing the model are symmetrical. I.e. I can get the project model to exactly the same state where I was if I export the project, reload the page, then import the model."
+    },
+    {
+        "smallerKey": "hideFeature",
+        "largerKey": "hideFeature",
+        "value": "Features can be hidden in Table View using a button next to each feature column / row header. Hidden features show up in the side bar with a button allowing them to be enabled."
+    },
+    {
+        "smallerKey": "hideFeature",
+        "largerKey": "import",
+        "value": "Importing (changing the text in the export/import text field) preserves the shown / hidden state of features currently in the table (as long as the model is valid)."
+    },
+    {
+        "smallerKey": "hideFeature",
+        "largerKey": "showFeatures",
+        "value": "Hidden features do not show up in Table View."
+    },
+    {
+        "smallerKey": "import",
+        "largerKey": "import",
+        "value": "If I change the state of the text field showing the exported model I instruct the system to load the new representation."
+    },
+    {
+        "smallerKey": "import",
+        "largerKey": "showFeatures",
+        "value": "When the text field state (of the export text) is changed, the features shown are reflected in the feature table (as long as the model is valid)."
+    },
+    {
+        "smallerKey": "showFeatures",
+        "largerKey": "showFeatures",
+        "value": "There is Table Mode in which all feature intersections can be seen."
+    }
+]
