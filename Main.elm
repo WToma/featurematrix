@@ -151,7 +151,7 @@ renderIntersectionEditBox intersectionValues ( f1, f2 ) =
         intersectionValue =
             Maybe.withDefault "" (Dict.get ( smallerId, largerId ) intersectionValues)
     in
-        Html.input [ type_ "text", id inputId, value intersectionValue, onInput (IntersectionUpdated smallerId largerId) ] []
+        Html.textarea [ class "intersectionTextArea", id inputId, value intersectionValue, onInput (IntersectionUpdated smallerId largerId) ] []
 
 
 update : Msg -> Model -> Model

@@ -72,3 +72,9 @@ body{
 .newFeatureName {
     width: 95%;
 }
+
+.intersectionTextArea {
+    width: 225px;
+    max-width: 225px;
+    height: 75px;
+}

@@ -12,7 +12,7 @@
     {
         "smallerKey": "addFeature",
         "largerKey": "export",
-        "value": "Newly added features are reflected in the model. This is true even if no intersection has been edited since the addition of the new feature (CURRENTLY FAILING)."
+        "value": "- Newly added features are reflected in the model.\n- This is true even if no intersection has been edited since the addition of the new feature (CURRENTLY FAILING).\n- If a new feature is added while the export view is shown, the view is update immediately."
     },
     {
         "smallerKey": "addFeature",
@@ -32,7 +32,7 @@
     {
         "smallerKey": "edit",
         "largerKey": "export",
-        "value": "If I edit an intersection, it's represented in the exportable model. If I edit an intersection while "
+        "value": "- If I edit an intersection, it's represented in the exportable model.\n- If I edit an intersection while the export textbox is shown, the textbox updates immediately."
     },
     {
         "smallerKey": "edit",
@@ -72,7 +72,7 @@
     {
         "smallerKey": "hideFeature",
         "largerKey": "import",
-        "value": "Importing (changing the text in the export/import text field) preserves the shown / hidden state of features currently in the table (as long as the model is valid)."
+        "value": "Importing (changing the text in the export/import text field) preserves the shown / hidden state of features currently in the table (as long as the model is valid). (CURRENTLY FAILING.)"
     },
     {
         "smallerKey": "hideFeature",
