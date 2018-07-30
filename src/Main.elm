@@ -90,13 +90,16 @@ dummyFeatures =
       }
     ]
 
+
 allFeaturesVisible : List Feature -> Dict String Bool
 allFeaturesVisible features =
-    List.map (\f -> (f.featureId, True)) features |> Dict.fromList
+    List.map (\f -> ( f.featureId, True )) features |> Dict.fromList
+
 
 isFeatureVisible : Dict String Bool -> Feature -> Bool
-isFeatureVisible featureVisibilities feature = 
+isFeatureVisible featureVisibilities feature =
     Dict.get feature.featureId featureVisibilities |> Maybe.withDefault False
+
 
 renderFeatureTableGeneric : (( Feature, Feature ) -> Html Msg) -> List Feature -> Dict String Bool -> Html Msg
 renderFeatureTableGeneric intersectionRenderer allFeatures featureVisibilities =
@@ -199,7 +202,7 @@ update msg model =
 
         AddNewFeature shortName description ->
             case addNewFeature model.features model.featureVisibility shortName description of
-                Result.Ok (newFeatures, newVisibility) ->
+                Result.Ok ( newFeatures, newVisibility ) ->
                     { model | features = newFeatures, featureVisibility = newVisibility }
 
                 Result.Err reason ->
@@ -214,15 +217,17 @@ update msg model =
 
         HideFeature featureId ->
             let
-                newFeatureVisibility = Dict.insert featureId False model.featureVisibility
+                newFeatureVisibility =
+                    Dict.insert featureId False model.featureVisibility
             in
-                {model | featureVisibility = newFeatureVisibility }
+                { model | featureVisibility = newFeatureVisibility }
 
         ShowFeature featureId ->
             let
-                newFeatureVisibility = Dict.insert featureId True model.featureVisibility
+                newFeatureVisibility =
+                    Dict.insert featureId True model.featureVisibility
             in
-                {model | featureVisibility = newFeatureVisibility }
+                { model | featureVisibility = newFeatureVisibility }
 
 
 mapFirst : (a -> a) -> List a -> List a
@@ -277,7 +282,7 @@ getUniqueFeatureId takens base try =
             candidate
 
 
-addNewFeature : List Feature -> Dict String Bool -> String -> String -> Result String ((List Feature), Dict String Bool)
+addNewFeature : List Feature -> Dict String Bool -> String -> String -> Result String ( List Feature, Dict String Bool )
 addNewFeature currentFeatures featureVisibility newShortName newDescription =
     let
         isShortNameEmpty =
@@ -298,7 +303,7 @@ addNewFeature currentFeatures featureVisibility newShortName newDescription =
                     newFeature =
                         { featureId = featureId, displayName = newShortName, description = newDescription }
                  in
-                    (List.append currentFeatures [ newFeature ], Dict.insert featureId True featureVisibility)
+                    ( List.append currentFeatures [ newFeature ], Dict.insert featureId True featureVisibility )
                 )
         else
             Result.Err
