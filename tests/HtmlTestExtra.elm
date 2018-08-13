@@ -1,4 +1,4 @@
-module HtmlTestExtra exposing (fromHtml, extractText)
+module HtmlTestExtra exposing (fromHtml, extractText, simulate)
 
 {-| Copy of Inert.elm from <https://raw.githubusercontent.com/eeue56/elm-html-test/5.2.0/src/Html/Inert.elm>
 Duplicating it here because elm-html-test currently doesn't support certain testing scenarios.
@@ -17,10 +17,13 @@ import ElmHtml.InternalTypes exposing (ElmHtml(..), EventHandler, Facts, Tagger,
 import Html exposing (Html)
 import Json.Decode
 import Native.HtmlAsJson
-
+import Dict
+import Json.Encode
 
 {-| Convert a html into a queryable (using elm-html-query) format. You can feed any elm-generated HTML into this, e.g.
 from your view function
+
+    fromHtml div [] [h1 [] [text "Hello World!"]]
 -}
 fromHtml : Html msg -> ElmHtml msg
 fromHtml html =
@@ -36,6 +39,12 @@ fromHtml html =
 (e.g. <h1>Header!</h1>). However if the child is deeper than that no text will be returned.
 Note: I don't think it's valid to have multiple text nodes inside a Node, which is the only case this function would return
 multiple results.
+
+    extractText (fromHtml (Html.text "hello")) == ["hello"]
+    extractText (fromHtml (Html.h1 [] [Html.text "hello"])) == ["hello"]
+    extractText (fromHtml (Html.h1 [] [Html.text "hello", Html.text "world"])) == ["hello", "world"]
+    extractText (fromHtml (Html.div [] [Html.h1 [] [Html.text "Hello World!"]])) == []
+
 -}
 extractText : ElmHtml msg -> List String
 extractText elmHtml =
@@ -56,6 +65,44 @@ extractTextDescend elmHtml remainingDepth =
 
         _ ->
             []
+
+{-| Simulates the given event on the given node, and returns the generated message, if any, or an error. To generate
+events to be used with the simulation, use elm-html-test's Event functions.
+
+    let
+        html = fromHtml (Html.input [Html.Attribute.type "text", Html.Events.onInput TextEntered])
+        event = Test.Html.Event.input "hello, world"
+    in
+        simulate event html == TextEntered "hello, world"
+-}
+simulate : (String, Json.Encode.Value) -> ElmHtml msg -> Result String msg
+simulate (eventName, jsEvent) html =
+    findEvent eventName html
+        |> Result.andThen (\foundEvent -> Json.Decode.decodeValue foundEvent jsEvent)
+
+findEvent : String -> ElmHtml msg -> Result String (Json.Decode.Decoder msg)
+findEvent eventName element =
+    let
+        eventDecoder node =
+            node.facts.events
+                |> Dict.get eventName
+                |> Result.fromMaybe ("Event.expectEvent: The event " ++ eventName ++ " does not exist on the node.")
+    in
+    case element of
+        TextTag { text } ->
+            Err ("Found element is a text, which does not produce events, therefore could not simulate " ++ eventName ++ " on it. Text found: " ++ text)
+
+        NodeEntry node ->
+            eventDecoder node
+
+        CustomNode node ->
+            eventDecoder node
+
+        MarkdownNode node ->
+            eventDecoder node
+
+        NoOp ->
+            Err ("Unknown element found. Could not simulate " ++ eventName ++ " on it.")
 
 
 {-| Convert a Html node to a Json string
