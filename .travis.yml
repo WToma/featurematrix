@@ -34,4 +34,8 @@ install:
 
 script:
   - elm-format --elm-version 0.18 --validate src tests
+  - elm-make src/**/*.elm --output elm.js
   - elm-test
+
+notifications:
+  email: false
