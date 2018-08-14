@@ -43,12 +43,14 @@ flattenMaybeList : List (Maybe a) -> List a
 flattenMaybeList =
     List.concatMap listFromMaybe
 
+
 {-| Returns the element at the `idx`'th position (0 based) in the list, if exists. `idx` must be non-negative (reverse
 indexing is not supported). O(N)!
 
     listElemAtIndex 2 ["a", "b", "c", "d"] == Just "c"
     listElemAtIndex 4 ["a", "b", "c", "d"] == Nothing
     listElemAtIndex -1 ["a", "b", "c", "d"] == Nothing
+
 -}
 listElemAtIndex : Int -> List a -> Maybe a
 listElemAtIndex idx xs =
@@ -56,25 +58,32 @@ listElemAtIndex idx xs =
         |> List.reverse
         |> List.head
 
+
 {-| Returns the first index (0 based) at which `predicate` is true, or Nothing. O(N)!
 
     even = \x -> x % 2 == 0
     firstIndexOf even [1, 2, 3, 5] == Just 1
     firstIndexOf even [1, 3, 5, 7] == Nothing
     firstIndexOf even [] == Nothing
+
 -}
 firstIndexOf : (a -> Bool) -> List a -> Maybe Int
 firstIndexOf predicate xs =
     let
-        firstIndexOfRec = \i ys ->
-            case ys of
-                y :: zs ->
-                    if predicate y then
-                        Just i
-                    else firstIndexOfRec (i+1) zs
-                [] -> Nothing
+        firstIndexOfRec =
+            \i ys ->
+                case ys of
+                    y :: zs ->
+                        if predicate y then
+                            Just i
+                        else
+                            firstIndexOfRec (i + 1) zs
+
+                    [] ->
+                        Nothing
     in
         firstIndexOfRec 0 xs
+
 
 {-| Same as Maybe.andThen but it takes 2 arguments. Both maybe arguments have to be Just, or else the result is Nothing.
 
@@ -96,5 +105,5 @@ firstIndexOf predicate xs =
 maybeAndThen2 : (a -> b -> Maybe c) -> Maybe a -> Maybe b -> Maybe c
 maybeAndThen2 f x y =
     x
-        |> Maybe.andThen (\justX -> Maybe.map (\justY -> (justX, justY)) y)
+        |> Maybe.andThen (\justX -> Maybe.map (\justY -> ( justX, justY )) y)
         |> Maybe.andThen (uncurry f)

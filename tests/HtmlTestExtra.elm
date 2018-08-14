@@ -20,10 +20,12 @@ import Native.HtmlAsJson
 import Dict
 import Json.Encode
 
+
 {-| Convert a html into a queryable (using elm-html-query) format. You can feed any elm-generated HTML into this, e.g.
 from your view function
 
     fromHtml div [] [h1 [] [text "Hello World!"]]
+
 -}
 fromHtml : Html msg -> ElmHtml msg
 fromHtml html =
@@ -66,6 +68,7 @@ extractTextDescend elmHtml remainingDepth =
         _ ->
             []
 
+
 {-| Simulates the given event on the given node, and returns the generated message, if any, or an error. To generate
 events to be used with the simulation, use elm-html-test's Event functions.
 
@@ -74,11 +77,13 @@ events to be used with the simulation, use elm-html-test's Event functions.
         event = Test.Html.Event.input "hello, world"
     in
         simulate event html == TextEntered "hello, world"
+
 -}
-simulate : (String, Json.Encode.Value) -> ElmHtml msg -> Result String msg
-simulate (eventName, jsEvent) html =
+simulate : ( String, Json.Encode.Value ) -> ElmHtml msg -> Result String msg
+simulate ( eventName, jsEvent ) html =
     findEvent eventName html
         |> Result.andThen (\foundEvent -> Json.Decode.decodeValue foundEvent jsEvent)
+
 
 findEvent : String -> ElmHtml msg -> Result String (Json.Decode.Decoder msg)
 findEvent eventName element =
@@ -88,21 +93,21 @@ findEvent eventName element =
                 |> Dict.get eventName
                 |> Result.fromMaybe ("Event.expectEvent: The event " ++ eventName ++ " does not exist on the node.")
     in
-    case element of
-        TextTag { text } ->
-            Err ("Found element is a text, which does not produce events, therefore could not simulate " ++ eventName ++ " on it. Text found: " ++ text)
+        case element of
+            TextTag { text } ->
+                Err ("Found element is a text, which does not produce events, therefore could not simulate " ++ eventName ++ " on it. Text found: " ++ text)
 
-        NodeEntry node ->
-            eventDecoder node
+            NodeEntry node ->
+                eventDecoder node
 
-        CustomNode node ->
-            eventDecoder node
+            CustomNode node ->
+                eventDecoder node
 
-        MarkdownNode node ->
-            eventDecoder node
+            MarkdownNode node ->
+                eventDecoder node
 
-        NoOp ->
-            Err ("Unknown element found. Could not simulate " ++ eventName ++ " on it.")
+            NoOp ->
+                Err ("Unknown element found. Could not simulate " ++ eventName ++ " on it.")
 
 
 {-| Convert a Html node to a Json string
