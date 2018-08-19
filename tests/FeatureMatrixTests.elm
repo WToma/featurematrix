@@ -1,6 +1,6 @@
 module FeatureMatrixTests exposing (..)
 
-import Test exposing (Test, describe, todo, test, fuzz3)
+import Test exposing (Test, describe, todo, test, fuzz, fuzz3)
 import Expect exposing (Expectation)
 import Main
 import Dict
@@ -14,24 +14,44 @@ import Set exposing (Set)
 import Helpers exposing (..)
 import Html exposing (Html)
 import Fuzz
+import Fuzzers exposing (modelFuzzerAllVisible)
+import Time
+import DebugTime
 
 
 tableModeShowsAllFeatures : Test
 tableModeShowsAllFeatures =
     describe "There is Table Mode in which all feature intersections can be seen."
-        [ test "all column and row headers are shown in the initial view" <|
-            \() ->
-                let
-                    expectations =
-                        [ expectColumnHeaderNames, expectRowHeaderNames ]
-
-                    expectDummyFeatureDisplayNames =
-                        List.map (\e -> e dummyFeatureDisplayNames) expectations
-                in
-                    Expect.all expectDummyFeatureDisplayNames initialView
-
-        -- TODO create fuzz test that generates a random model
+        [ test "all column and row headers are shown in the initial view"
+            (\() -> testColumnAndRowHeaderNamesForModel initialModel)
+        , Test.only (fuzz modelFuzzerAllVisible
+            "all column and row headers can be seen in a random model (fuzz)" <|
+                DebugTime.printElapsedTime1
+                    "fuzz test run"
+                    (\model -> testColumnAndRowHeaderNamesForModel model))
+        , todo "column and row headers are shown in the same order"
+        , todo "feature intersections can be seen in the table"
+        , todo "feature intersections are diagonally mirrored"
         ]
+
+
+testColumnAndRowHeaderNamesForModel : Main.Model -> Expectation
+testColumnAndRowHeaderNamesForModel model =
+    let
+        viewResult =
+            Main.view model
+
+        expectedHeaderNames =
+            getFeatureDisplayNames model
+    in
+        testColumnAndRowHeaderNames expectedHeaderNames viewResult
+
+
+testColumnAndRowHeaderNames : List String -> Html msg -> Expectation
+testColumnAndRowHeaderNames expectedHeaderNames viewResult =
+    Expect.all
+        [ expectColumnHeaderNames expectedHeaderNames, expectRowHeaderNames expectedHeaderNames ]
+        viewResult
 
 
 editIntersection : Test
@@ -46,6 +66,7 @@ editIntersection =
                     numFeatures =
                         List.length model.features
 
+                    -- TODO use Fuzz.intRange instead
                     toFeatureIndex =
                         \i ->
                             let
@@ -107,9 +128,9 @@ initialModel =
     }
 
 
-dummyFeatureDisplayNames : List String
-dummyFeatureDisplayNames =
-    List.map (\df -> df.displayName) Main.dummyFeatures
+getFeatureDisplayNames : Main.Model -> List String
+getFeatureDisplayNames model =
+    List.map (\df -> df.displayName) model.features
 
 
 expectColumnHeaderNames : List String -> Html msg -> Expectation
