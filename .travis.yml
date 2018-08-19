@@ -34,7 +34,7 @@ install:
 
 script:
   - elm-format --elm-version 0.18 --validate src tests
-  - elm-make src/**/*.elm --output elm.js
+  - elm-make $(find src -name "*.elm") --output elm.js
   - elm-verify-examples
   - elm-test
 
