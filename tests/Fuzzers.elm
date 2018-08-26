@@ -1,4 +1,4 @@
-module Fuzzers exposing (modelFuzzerAllVisible)
+module Fuzzers exposing (..)
 
 import Fuzz
 import Main
@@ -16,6 +16,16 @@ modelFuzzerAllVisible : Fuzz.Fuzzer Main.Model
 modelFuzzerAllVisible =
     Fuzz.custom modelGeneratorAllVisible modelShrinker
 
+
+fromInt : Int -> Main.Model
+fromInt seedSource =
+    let
+        seed = initialSeed seedSource
+        (model, _) = step modelGeneratorAllVisible seed
+    in
+        model
+
+
 shortNonEmptyList : Generator a -> Generator (List a)
 shortNonEmptyList g =
     int 1 10
@@ -28,7 +38,7 @@ randomLengthList maxLength g =
     
 
 textLike : Generator String
-textLike = shortNonEmptyList nonEmptyString |> map (String.join " ")
+textLike = nonEmptyString --shortNonEmptyList nonEmptyString |> map (String.join " ") -- the commented implementation is about 8x slower
 
 
 featureGenerator : Generator Main.Feature
@@ -86,7 +96,7 @@ modelGeneratorAllVisible : Generator Main.Model
 modelGeneratorAllVisible =
     let
         features =
-            randomLengthList 50 featureGenerator
+            randomLengthList 10 featureGenerator
 
         featureIds =
             map (List.map (\f -> f.featureId)) features

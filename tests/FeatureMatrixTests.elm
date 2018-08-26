@@ -15,20 +15,20 @@ import Helpers exposing (..)
 import Html exposing (Html)
 import Fuzz
 import Fuzzers exposing (modelFuzzerAllVisible)
-import Time
 import DebugTime
-
+import Random.Pcg as RandomPcg
 
 tableModeShowsAllFeatures : Test
 tableModeShowsAllFeatures =
     describe "There is Table Mode in which all feature intersections can be seen."
         [ test "all column and row headers are shown in the initial view"
             (\() -> testColumnAndRowHeaderNamesForModel initialModel)
-        , Test.only (fuzz modelFuzzerAllVisible
+        , Test.only <| fuzz (Fuzz.intRange RandomPcg.minInt RandomPcg.maxInt)
             "all column and row headers can be seen in a random model (fuzz)" <|
                 DebugTime.printElapsedTime1
                     "fuzz test run"
-                    (\model -> testColumnAndRowHeaderNamesForModel model))
+                    (\seed -> testColumnAndRowHeaderNamesForModel ((DebugTime.printElapsedTime1 "generation time" Fuzzers.fromInt) seed))
+
         , todo "column and row headers are shown in the same order"
         , todo "feature intersections can be seen in the table"
         , todo "feature intersections are diagonally mirrored"
