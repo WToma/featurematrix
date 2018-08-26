@@ -29,8 +29,9 @@ tableModeShowsAllFeatures =
                         List.map (\e -> e dummyFeatureDisplayNames) expectations
                 in
                     Expect.all expectDummyFeatureDisplayNames initialView
-
-        -- TODO create fuzz test that generates a random model
+        , todo "column and row headers are shown in the same order"
+        , todo "feature intersections can be seen in the table"
+        , todo "feature intersections are diagonally mirrored"
         ]
 
 
