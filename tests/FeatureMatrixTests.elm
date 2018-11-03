@@ -18,17 +18,24 @@ import TableViewHelpers exposing (columnHeaderNames, rowHeaderNames, findFeature
 tableModeShowsAllFeatures : Test
 tableModeShowsAllFeatures =
     describe "There is Table Mode in which all feature intersections can be seen."
-        [ test "all column and row headers are shown in the initial view" <|
+        [ test "all column header names are shown in the initial view" <|
+            \() -> expectHeaderNamesToBe columnHeaderNames "column" dummyFeatureDisplayNames
+        , test "all row header names are shown in the initial view" <|
+            \() -> expectHeaderNamesToBe rowHeaderNames "row" dummyFeatureDisplayNames
+        , test "column and row headers are shown in the same order" <|
             \() ->
-                let
-                    expectations =
-                        [ expectColumnHeaderNames, expectRowHeaderNames ]
+                testInitialTable <|
+                    \table ->
+                        let
+                            columnHeaders =
+                                columnHeaderNames table
+                                    |> Result.fromMaybe "column headers not found"
 
-                    expectDummyFeatureDisplayNames =
-                        List.map (\e -> e dummyFeatureDisplayNames) expectations
-                in
-                    Expect.all expectDummyFeatureDisplayNames initialView
-        , todo "column and row headers are shown in the same order"
+                            rowHeaders =
+                                rowHeaderNames table
+                                    |> Result.fromMaybe "row headers not found"
+                        in
+                            Result.map2 Expect.equalLists columnHeaders rowHeaders
         , todo "feature intersections can be seen in the table"
         , todo "feature intersections are diagonally mirrored"
         ]
@@ -107,30 +114,32 @@ initialModel =
     }
 
 
+testInitialTable : (ElmHtml Main.Msg -> Result String Expectation) -> Expectation
+testInitialTable t =
+    let
+        table =
+            findFeatureTableElmHtml (HtmlTestExtra.fromHtml initialView)
+                |> Result.fromMaybe "feature table not found"
+
+        testResult =
+            Result.andThen t table
+    in
+        resultToExpectation testResult
+
+
 dummyFeatureDisplayNames : List String
 dummyFeatureDisplayNames =
     List.map (\df -> df.displayName) Main.dummyFeatures
 
 
-expectColumnHeaderNames : List String -> Html msg -> Expectation
-expectColumnHeaderNames =
-    expectHeaderNames columnHeaderNames
-
-
-expectRowHeaderNames : List String -> Html msg -> Expectation
-expectRowHeaderNames =
-    expectHeaderNames rowHeaderNames
-
-
-expectHeaderNames : (ElmHtml msg -> Maybe (List String)) -> List String -> Html msg -> Expectation
-expectHeaderNames getHeaders expectedHeaderNames viewResult =
-    viewResult
-        |> HtmlTestExtra.fromHtml
-        |> findFeatureTableElmHtml
-        |> Maybe.andThen getHeaders
-        |> Maybe.withDefault []
-        |> Set.fromList
-        |> Expect.equalSets (Set.fromList expectedHeaderNames)
+expectHeaderNamesToBe : (ElmHtml Main.Msg -> Maybe (List String)) -> String -> List String -> Expectation
+expectHeaderNamesToBe getHeadersFn nameInErr expectedHeaderNames =
+    testInitialTable <|
+        \table ->
+            getHeadersFn table
+                |> Result.fromMaybe (nameInErr ++ " headers not found")
+                |> Result.map Set.fromList
+                |> Result.map (Expect.equalSets (Set.fromList expectedHeaderNames))
 
 
 typeIntoIntersection : String -> String -> String -> ElmHtml Main.Msg -> Result String Main.Msg
