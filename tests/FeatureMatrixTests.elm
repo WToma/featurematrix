@@ -12,7 +12,7 @@ import Set exposing (Set)
 import Helpers exposing (..)
 import Html exposing (Html)
 import Fuzz
-import TableViewHelpers exposing (columnHeaderNames, rowHeaderNames, findFeatureTableElmHtml, findIntersectionCell)
+import TableViewHelpers exposing (columnHeaderNames, rowHeaderNames, findFeatureTableElmHtml, findIntersectionCell, findTextFieldInCell)
 
 
 tableModeShowsAllFeatures : Test
@@ -36,8 +36,19 @@ tableModeShowsAllFeatures =
                                     |> Result.fromMaybe "row headers not found"
                         in
                             Result.map2 Expect.equalLists columnHeaders rowHeaders
-        , todo "feature intersections can be seen in the table"
-        , todo "feature intersections are diagonally mirrored"
+        , test "feature intersections can be seen in the table" <|
+            \() ->
+                let
+                    verify : ElmHtml msg -> Result String Expectation
+                    verify table =
+                        verifyAllIntersectionsInTable initialModel table |> Result.Ok
+                in
+                    testInitialTable <|
+                        \table -> verify table
+
+        -- , todo "feature intersections are diagonally mirrored"
+        -- this is actually tested by the fact that we test all intersections in the above test
+        -- and we verified previously that the headers are shown in the same order in rows and columns
         ]
 
 
@@ -99,11 +110,20 @@ initialView =
     Main.view initialModel
 
 
+dummyIntersections : Dict.Dict ( String, String ) String
+dummyIntersections =
+    Dict.fromList
+        [ ( ( "edit", "showFeatures" ), "edited features are displayed" )
+        , ( ( "edit", "export" ), "edited features are exported" )
+        , ( ( "addFeature", "import" ), "added features can be exported and imported" )
+        ]
+
+
 initialModel : Main.Model
 initialModel =
     { features = Main.dummyFeatures
     , featureVisibility = Main.allFeaturesVisible Main.dummyFeatures
-    , intersections = Dict.empty
+    , intersections = dummyIntersections
     , parseError = Nothing
     , showSerialized = False
     , newFeaturePanelState =
@@ -150,15 +170,9 @@ typeIntoIntersection rowLabel colLabel textToInsert html =
 
         errorText =
             "could not find the cell for '" ++ rowLabel ++ "' / '" ++ colLabel ++ "' in the feature table"
-
-        textField : ElmHtml Main.Msg -> Maybe (ElmHtml Main.Msg)
-        textField intersectionCell =
-            intersectionCell
-                |> ElmHtmlQuery.queryByTagName "textarea"
-                |> ensureSingleton
     in
         findIntersectionCell rowLabel colLabel html
-            |> Result.andThen (\cell -> Result.fromMaybe "could not find input field in cell" <| textField cell)
+            |> Result.andThen findTextFieldInCell
             |> Result.andThen (HtmlTestExtra.simulate event)
 
 
@@ -194,6 +208,59 @@ verifyIntersectionText rowFeatureId colFeatureId expectedText model =
                     Expect.pass
 
 
+verifyAllIntersectionsInTable : Main.Model -> ElmHtml msg -> Expectation
+verifyAllIntersectionsInTable model table =
+    let
+        featureIds =
+            List.map .featureId model.features
+
+        allIntersections =
+            List.concatMap (\f1 -> List.map ((,) f1) featureIds) featureIds
+
+        allExpectations : List (ElmHtml msg -> Expectation)
+        allExpectations =
+            List.map
+                (\( f1, f2 ) -> \table -> resultToExpectation (verifyIntersectionTextInTable f1 f2 model table))
+                allIntersections
+    in
+        Expect.all allExpectations table
+
+
+verifyIntersectionTextInTable : String -> String -> Main.Model -> ElmHtml msg -> Result String Expectation
+verifyIntersectionTextInTable rowFeatureId colFeatureId model table =
+    let
+        featureIdToFeatureMap =
+            Dict.fromList <| List.map (\f -> ( f.featureId, f )) model.features
+
+        rowHeaderName : Result String String
+        rowHeaderName =
+            Dict.get rowFeatureId featureIdToFeatureMap
+                |> Result.fromMaybe ("no such feature in model for row feature ID: " ++ rowFeatureId)
+                |> Result.map .displayName
+
+        colHeaderName : Result String String
+        colHeaderName =
+            Dict.get colFeatureId featureIdToFeatureMap
+                |> Result.fromMaybe ("no such feature in model for column feature ID: " ++ colFeatureId)
+                |> Result.map .displayName
+
+        expectedText : String
+        expectedText =
+            Dict.get (orderTuple ( rowFeatureId, colFeatureId )) model.intersections
+                |> Maybe.withDefault ""
+
+        verify : String -> String -> Result String Expectation
+        verify row col =
+            findIntersectionCell row col table
+                |> Result.andThen findTextFieldInCell
+                |> Result.map HtmlTestExtra.getAttributes
+                |> Result.map (getStringAttribute "value")
+                |> Result.map (Maybe.withDefault "")
+                |> Result.map (Expect.equal expectedText)
+    in
+        resultAndThen2 verify rowHeaderName colHeaderName
+
+
 resultToExpectation : Result String Expectation -> Expectation
 resultToExpectation res =
     case res of
@@ -202,3 +269,13 @@ resultToExpectation res =
 
         Ok expectation ->
             expectation
+
+
+getStringAttribute : String -> ( Dict.Dict String String, a ) -> Maybe String
+getStringAttribute attribute ( stringAttributes, _ ) =
+    Dict.get attribute stringAttributes
+
+
+getBoolAttribute : String -> ( a, Dict.Dict String Bool ) -> Maybe Bool
+getBoolAttribute attribute ( _, boolAttributes ) =
+    Dict.get attribute boolAttributes

@@ -1,4 +1,4 @@
-module TableViewHelpers exposing (columnHeaderNames, rowHeaderNames, findFeatureTableElmHtml, findIntersectionCell)
+module TableViewHelpers exposing (columnHeaderNames, rowHeaderNames, findFeatureTableElmHtml, findIntersectionCell, findTextFieldInCell)
 
 import ElmHtml.InternalTypes exposing (ElmHtml)
 import ElmHtml.Query exposing (queryByTagName, queryByClassName)
@@ -105,3 +105,11 @@ findIntersectionCell rowLabel colLabel featureTable =
                 (Result.map (queryByTagName "td") row)
     in
         cell
+
+
+findTextFieldInCell : ElmHtml msg -> Result String (ElmHtml msg)
+findTextFieldInCell intersectionCell =
+    intersectionCell
+        |> queryByTagName "textarea"
+        |> ensureSingleton
+        |> Result.fromMaybe "could not find unique text area"

@@ -1,4 +1,4 @@
-module HtmlTestExtra exposing (fromHtml, extractText, simulate)
+module HtmlTestExtra exposing (fromHtml, extractText, simulate, getAttributes)
 
 {-| Copy of Inert.elm from <https://raw.githubusercontent.com/eeue56/elm-html-test/5.2.0/src/Html/Inert.elm>
 Duplicating it here because elm-html-test currently doesn't support certain testing scenarios.
@@ -144,3 +144,16 @@ taggedEventDecoder taggers eventHandler =
 
         tagger :: taggers ->
             Json.Decode.map (taggerFunction tagger) (taggedEventDecoder taggers eventHandler)
+
+
+{-| Returns the string attributes and bool attributes of the given node. If the given HTML is not a node
+empty dictionaries are returned.
+-}
+getAttributes : ElmHtml msg -> ( Dict.Dict String String, Dict.Dict String Bool )
+getAttributes elmHtml =
+    case elmHtml of
+        NodeEntry { facts } ->
+            ( facts.stringAttributes, facts.boolAttributes )
+
+        _ ->
+            ( Dict.empty, Dict.empty )
