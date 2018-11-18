@@ -354,6 +354,7 @@ renderModelInputOutput model =
                  else
                     ShowModel
                 )
+            , id "hideShowSaveLoadBox"
             ]
             [ text
                 (if model.showSerialized then

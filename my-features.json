@@ -52,7 +52,7 @@
     {
         "smallerKey": "export",
         "largerKey": "export",
-        "value": "There is a button that allows me to view a text representation of my project."
+        "value": "There is a button that allows me to view a text representation of my project.\nThe button can be clicked and then a textbox appears with the text representation."
     },
     {
         "smallerKey": "export",

@@ -174,3 +174,27 @@ orderTuple ( x, y ) =
         ( x, y )
     else
         ( y, x )
+
+
+{-| Folds over a list of results from left to right. Returns the fold result, or the first error from the input list.
+
+    resultListFoldl (+) 0 [] --> Result.Ok 0
+    resultListFoldl (::) [] [Result.Ok 1, Result.Ok 2, Result.Ok 3] --> Result.Ok [3, 2, 1]
+    resultListFoldl (::) [] [Result.Ok 1, Result.Err "nope", Result.Ok 3] --> Result.Err "nope"
+    resultListFoldl (::) [] [Result.Err "nada", Result.Err "nope", Result.Ok 3] --> Result.Err "nada"
+
+-}
+resultListFoldl : (okT -> accT -> accT) -> accT -> List (Result errT okT) -> Result errT accT
+resultListFoldl f x0 =
+    let
+        -- this is very similar to (Result.map2 f), with the difference that this implementation keeps the
+        -- error from acc. Since in f ok is the first argument, using Result.map2 would keep the last error
+        fR xR accR =
+            case accR of
+                Result.Ok acc ->
+                    Result.map (\x -> f x acc) xR
+
+                err ->
+                    err
+    in
+        List.foldl fR (Result.Ok x0)

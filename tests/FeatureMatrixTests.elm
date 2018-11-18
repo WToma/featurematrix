@@ -5,14 +5,14 @@ import Expect exposing (Expectation)
 import Main
 import Dict
 import Test.Html.Event as Event
-import ElmHtml.Query as ElmHtmlQuery
 import HtmlTestExtra
 import ElmHtml.InternalTypes exposing (ElmHtml)
 import Set exposing (Set)
 import Helpers exposing (..)
-import Html exposing (Html)
 import Fuzz
 import TableViewHelpers exposing (columnHeaderNames, rowHeaderNames, findFeatureTableElmHtml, findIntersectionCell, findTextFieldInCell)
+import ControlPanelHelpers exposing (findShowHideModelButton, findExportImportTextField)
+import Json.Encode as JE
 
 
 tableModeShowsAllFeatures : Test
@@ -55,28 +55,61 @@ tableModeShowsAllFeatures =
 editIntersection : Test
 editIntersection =
     describe "In Table View I can type in an intersection of two features."
-        [ fuzz3 Fuzz.int Fuzz.int Fuzz.string "typing in an intersection is reflected in the model" <|
-            \rowRandom colRandom intersectionText ->
-                let
-                    testRowAndCol rowFeature colFeature table =
-                        typeIntoIntersection rowFeature.displayName colFeature.displayName intersectionText table
-                            |> Result.map ((flip Main.update) initialModel)
-                            |> Result.map (verifyIntersectionText rowFeature.featureId colFeature.featureId intersectionText)
+        [ typeIntoIntersectionTest "typing in an intersection is reflected in the model" initialModel Result.Ok <|
+            \rowId colId text model -> verifyIntersectionText rowId colId text model |> Result.Ok
 
-                    doTest : ElmHtml Main.Msg -> Result String Expectation
-                    doTest table =
-                        resultAndThen2
-                            (\r c -> testRowAndCol r c table)
-                            (getFeature initialModel rowRandom)
-                            (getFeature initialModel colRandom)
-                in
-                    testInitialTable doTest
+        -- todo "If I type in a field other than the main diagonal, it'll appear in the transposition of the cell I typed into as well."
+        -- this is implicitly tested by the fact that we have already tested that the display is simmetrical
         ]
 
 
-initialView : Html Main.Msg
+export : Test
+export =
+    describe "There is a button that allows me to view a text representation of my project."
+        [ test "the button can be clicked and then a textbox appears with the text representation" <|
+            \() ->
+                let
+                    updatedView =
+                        showImportExportPanel initialModel |> Result.map render
+
+                    content =
+                        Result.andThen getImportExportContent updatedView
+
+                    verification actual =
+                        verifyTextContainsIntersections actual initialModel
+                in
+                    content
+                        |> Result.map verification
+                        |> resultToExpectation
+        , typeIntoIntersectionTest "if I edit an intersection, it's represented in the exportable model" initialModel Result.Ok <|
+            \rowId colId text model ->
+                let
+                    updatedView =
+                        showImportExportPanel model |> Result.map render
+
+                    content =
+                        Result.andThen getImportExportContent updatedView
+                in
+                    verifyShownModelContainsTypedIntersection text content
+        , typeIntoIntersectionTest "if I edit an intersection while the export textbox is shown, the textbox updates immediately" initialModel showImportExportPanel <|
+            \rowId coldId text model ->
+                let
+                    content =
+                        render model
+                            |> getImportExportContent
+                in
+                    verifyShownModelContainsTypedIntersection text content
+        ]
+
+
+render : Main.Model -> ElmHtml Main.Msg
+render model =
+    Main.view model |> HtmlTestExtra.fromHtml
+
+
+initialView : ElmHtml Main.Msg
 initialView =
-    Main.view initialModel
+    render initialModel
 
 
 dummyIntersections : Dict.Dict ( String, String ) String
@@ -105,9 +138,16 @@ initialModel =
 
 testInitialTable : (ElmHtml Main.Msg -> Result String Expectation) -> Expectation
 testInitialTable t =
+    testTable initialModel t
+
+
+testTable : Main.Model -> (ElmHtml Main.Msg -> Result String Expectation) -> Expectation
+testTable initialModel t =
     let
         table =
-            findFeatureTableElmHtml (HtmlTestExtra.fromHtml initialView)
+            initialModel
+                |> render
+                |> findFeatureTableElmHtml
                 |> Result.fromMaybe "feature table not found"
 
         testResult =
@@ -129,6 +169,32 @@ expectHeaderNamesToBe getHeadersFn nameInErr expectedHeaderNames =
                 |> Result.fromMaybe (nameInErr ++ " headers not found")
                 |> Result.map Set.fromList
                 |> Result.map (Expect.equalSets (Set.fromList expectedHeaderNames))
+
+
+typeIntoIntersectionTest : String -> Main.Model -> (Main.Model -> Result String Main.Model) -> (String -> String -> String -> Main.Model -> Result String Expectation) -> Test
+typeIntoIntersectionTest title modelBeforePreamble preamble verification =
+    fuzz3 Fuzz.int Fuzz.int Fuzz.string title <|
+        \rowRandom colRandom intersectionText ->
+            let
+                initialModel =
+                    preamble modelBeforePreamble
+
+                testRowAndCol : Main.Model -> Main.Feature -> Main.Feature -> ElmHtml Main.Msg -> Result String Expectation
+                testRowAndCol initialModel rowFeature colFeature table =
+                    typeIntoIntersection rowFeature.displayName colFeature.displayName intersectionText table
+                        |> Result.map ((flip Main.update) initialModel)
+                        |> Result.andThen (verification rowFeature.featureId colFeature.featureId intersectionText)
+
+                doTest : Main.Model -> ElmHtml Main.Msg -> Result String Expectation
+                doTest initialModel table =
+                    resultAndThen2
+                        (\r c -> testRowAndCol initialModel r c table)
+                        (getFeature initialModel rowRandom)
+                        (getFeature initialModel colRandom)
+            in
+                preamble modelBeforePreamble
+                    |> Result.map (\m -> testTable m (doTest m))
+                    |> resultToExpectation
 
 
 typeIntoIntersection : String -> String -> String -> ElmHtml Main.Msg -> Result String Main.Msg
@@ -254,3 +320,70 @@ getFeature model randomIndex =
             listElemAtIndex featureIndex model.features
     in
         Result.fromMaybe ("no feature at index " ++ (toString featureIndex)) maybeFeature
+
+
+clickButton : ElmHtml Main.Msg -> Result String Main.Msg
+clickButton button =
+    HtmlTestExtra.simulate Event.click button
+
+
+showImportExportPanel : Main.Model -> Result String Main.Model
+showImportExportPanel initialModel =
+    render initialModel
+        |> findShowHideModelButton
+        |> Result.fromMaybe "show/hide model button not found"
+        |> Result.andThen clickButton
+        |> Result.map ((flip Main.update) initialModel)
+
+
+getImportExportContent : ElmHtml msg -> Result String String
+getImportExportContent html =
+    findExportImportTextField html
+        |> Result.fromMaybe "import/export textarea not found"
+        |> Result.map HtmlTestExtra.getAttributes
+        |> Result.map (getStringAttribute "value")
+        |> Result.map (Maybe.withDefault "")
+
+
+verifyTextContainsIntersections : String -> Main.Model -> Expectation
+verifyTextContainsIntersections text model =
+    let
+        intersections =
+            Dict.toList model.intersections
+
+        intersectionPresent ( ( smallerKey, largerKey ) as k, intersection ) =
+            if String.contains intersection text then
+                Result.Ok k
+            else
+                Result.Err ("the value for (" ++ smallerKey ++ ", " ++ largerKey ++ ") (" ++ intersection ++ ") was not present")
+
+        results =
+            List.map intersectionPresent intersections
+
+        result =
+            resultListFoldl (always (always ())) () results
+    in
+        expectNotError result
+
+
+verifyShownModelContainsTypedIntersection : String -> Result String String -> Result String Expectation
+verifyShownModelContainsTypedIntersection expected maybeContent =
+    let
+        verify content =
+            let
+                encodedText =
+                    JE.encode 0 (JE.string expected) |> String.dropLeft 1 |> String.dropRight 1
+            in
+                Expect.true ("expected import export panel to contain '" ++ encodedText ++ "' but it was '" ++ content ++ "'") (String.contains encodedText content)
+    in
+        Result.map verify maybeContent
+
+
+expectNotError : Result String a -> Expectation
+expectNotError r =
+    case r of
+        Result.Ok _ ->
+            Expect.pass
+
+        Result.Err msg ->
+            Expect.fail msg
