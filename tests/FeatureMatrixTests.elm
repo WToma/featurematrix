@@ -58,50 +58,19 @@ editIntersection =
         [ fuzz3 Fuzz.int Fuzz.int Fuzz.string "typing in an intersection is reflected in the model" <|
             \rowRandom colRandom intersectionText ->
                 let
-                    model =
-                        initialModel
+                    testRowAndCol rowFeature colFeature table =
+                        typeIntoIntersection rowFeature.displayName colFeature.displayName intersectionText table
+                            |> Result.map ((flip Main.update) initialModel)
+                            |> Result.map (verifyIntersectionText rowFeature.featureId colFeature.featureId intersectionText)
 
-                    numFeatures =
-                        List.length model.features
-
-                    toFeatureIndex =
-                        \i ->
-                            let
-                                modulo =
-                                    i % numFeatures
-                            in
-                                if modulo >= 0 then
-                                    modulo
-                                else
-                                    modulo + numFeatures
-
-                    pickFeatureFromRandom =
-                        \i ->
-                            let
-                                featureIndex =
-                                    toFeatureIndex i
-                            in
-                                case listElemAtIndex featureIndex model.features of
-                                    Nothing ->
-                                        Debug.crash ("no feature at index " ++ (toString featureIndex))
-
-                                    Just f ->
-                                        f
-
-                    rowFeature =
-                        pickFeatureFromRandom rowRandom
-
-                    colFeature =
-                        pickFeatureFromRandom colRandom
+                    doTest : ElmHtml Main.Msg -> Result String Expectation
+                    doTest table =
+                        resultAndThen2
+                            (\r c -> testRowAndCol r c table)
+                            (getFeature initialModel rowRandom)
+                            (getFeature initialModel colRandom)
                 in
-                    initialView
-                        |> HtmlTestExtra.fromHtml
-                        |> findFeatureTableElmHtml
-                        |> Result.fromMaybe "could not find feature table"
-                        |> Result.andThen (typeIntoIntersection rowFeature.displayName colFeature.displayName intersectionText)
-                        |> Result.map ((flip Main.update) initialModel)
-                        |> Result.map (verifyIntersectionText rowFeature.featureId colFeature.featureId intersectionText)
-                        |> resultToExpectation
+                    testInitialTable doTest
         ]
 
 
@@ -179,14 +148,8 @@ typeIntoIntersection rowLabel colLabel textToInsert html =
 verifyIntersectionText : String -> String -> String -> Main.Model -> Expectation
 verifyIntersectionText rowFeatureId colFeatureId expectedText model =
     let
-        ( smallerKey, largerKey ) =
-            if rowFeatureId < colFeatureId then
-                ( rowFeatureId, colFeatureId )
-            else
-                ( colFeatureId, rowFeatureId )
-
         valueAtCell =
-            Dict.get ( smallerKey, largerKey ) model.intersections
+            Dict.get (orderTuple ( rowFeatureId, colFeatureId )) model.intersections
 
         location =
             "at intersection " ++ rowFeatureId ++ " / " ++ colFeatureId
@@ -279,3 +242,15 @@ getStringAttribute attribute ( stringAttributes, _ ) =
 getBoolAttribute : String -> ( a, Dict.Dict String Bool ) -> Maybe Bool
 getBoolAttribute attribute ( _, boolAttributes ) =
     Dict.get attribute boolAttributes
+
+
+getFeature : Main.Model -> Int -> Result String Main.Feature
+getFeature model randomIndex =
+    let
+        featureIndex =
+            randomIndex % (List.length model.features)
+
+        maybeFeature =
+            listElemAtIndex featureIndex model.features
+    in
+        Result.fromMaybe ("no feature at index " ++ (toString featureIndex)) maybeFeature
