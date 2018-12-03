@@ -102,6 +102,32 @@ export =
         ]
 
 
+importFeature : Test
+importFeature =
+    describe "If I change the state of the text field showing the exported model I instruct the system to load the new representation."
+        [ test "when the import text is changed to a valid string, the intersections are reflected in the feature table" <|
+            \() ->
+                (importAndFindFeatureTable "[{\"smallerKey\":\"import\",\"largerKey\":\"showFeatures\",\"value\":\"previously saved content\"}]" initialModel)
+                    |> Result.map
+                        (expectIntersections
+                            [ ( "Import", "Shows Features", "previously saved content" )
+                            , ( "Edit Intersection", "Export", "" )
+                            ]
+                        )
+                    |> resultToExpectation
+        , test "when the import text is changed to an invalid string, the intersections remain the same" <|
+            \() ->
+                (importAndFindFeatureTable "not a valid JSON" initialModel)
+                    |> Result.map
+                        (expectIntersections
+                            [ ( "Import", "Shows Features", "" )
+                            , ( "Edit Intersection", "Export", "edited features are exported" )
+                            ]
+                        )
+                    |> resultToExpectation
+        ]
+
+
 render : Main.Model -> ElmHtml Main.Msg
 render model =
     Main.view model |> HtmlTestExtra.fromHtml
@@ -280,14 +306,29 @@ verifyIntersectionTextInTable rowFeatureId colFeatureId model table =
 
         verify : String -> String -> Result String Expectation
         verify row col =
-            findIntersectionCell row col table
-                |> Result.andThen findTextFieldInCell
-                |> Result.map HtmlTestExtra.getAttributes
-                |> Result.map (getStringAttribute "value")
-                |> Result.map (Maybe.withDefault "")
-                |> Result.map (Expect.equal expectedText)
+            expectIntersection row col expectedText table
     in
         resultAndThen2 verify rowHeaderName colHeaderName
+
+
+expectIntersection : String -> String -> String -> ElmHtml msg -> Result String Expectation
+expectIntersection rowHeaderName colHeaderName text table =
+    findIntersectionCellText rowHeaderName colHeaderName table
+        |> Result.map (Expect.equal text)
+
+
+expectIntersections : List ( String, String, String ) -> ElmHtml msg -> Expectation
+expectIntersections expectations table =
+    Expect.all (List.map (\( r, c, t ) -> \tab -> (expectIntersection r c t tab |> resultToExpectation)) expectations) table
+
+
+findIntersectionCellText : String -> String -> ElmHtml msg -> Result String String
+findIntersectionCellText rowHeaderName colHeaderName table =
+    findIntersectionCell rowHeaderName colHeaderName table
+        |> Result.andThen findTextFieldInCell
+        |> Result.map HtmlTestExtra.getAttributes
+        |> Result.map (getStringAttribute "value")
+        |> Result.map (Maybe.withDefault "")
 
 
 resultToExpectation : Result String Expectation -> Expectation
@@ -343,6 +384,24 @@ getImportExportContent html =
         |> Result.map HtmlTestExtra.getAttributes
         |> Result.map (getStringAttribute "value")
         |> Result.map (Maybe.withDefault "")
+
+
+updateImportExportContent : String -> ElmHtml Main.Msg -> Result String Main.Msg
+updateImportExportContent newContent html =
+    findExportImportTextField html
+        |> Result.fromMaybe "import/export textarea not found"
+        |> Result.andThen (HtmlTestExtra.simulate (Event.input newContent))
+
+
+importAndFindFeatureTable : String -> Main.Model -> Result String (ElmHtml Main.Msg)
+importAndFindFeatureTable typedText initialModel =
+    showImportExportPanel initialModel
+        |> Result.map render
+        |> Result.andThen (updateImportExportContent typedText)
+        |> Result.map ((flip Main.update) initialModel)
+        |> Result.map render
+        |> Result.map findFeatureTableElmHtml
+        |> Result.andThen (Result.fromMaybe "feature table not found in view after import")
 
 
 verifyTextContainsIntersections : String -> Main.Model -> Expectation
