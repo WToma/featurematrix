@@ -1,4 +1,4 @@
-module TableViewHelpers exposing (columnHeaderNames, rowHeaderNames, findFeatureTableElmHtml, findIntersectionCell, findTextFieldInCell)
+module TableViewHelpers exposing (columnHeaderNames, rowHeaderNames, findFeatureTableElmHtml, findIntersectionCell, findTextFieldInCell, findColumnHeaderByName, findRowHeaderByName, extractHideButtonFromHeaderCell)
 
 import ElmHtml.InternalTypes exposing (ElmHtml)
 import ElmHtml.Query exposing (queryByTagName, queryByClassName)
@@ -10,6 +10,44 @@ import HtmlTestExtra
 -}
 columnHeaderNames : ElmHtml msg -> Maybe (List String)
 columnHeaderNames featureTable =
+    columnHeaders featureTable
+        |> Maybe.map (List.map extractHeaderCellText)
+        |> Maybe.map flattenMaybeList
+
+
+{-| Given a feature display name (header text) and the feature table, return the column header cell for the given
+feature
+-}
+findColumnHeaderByName : String -> ElmHtml msg -> Maybe (ElmHtml msg)
+findColumnHeaderByName featureName table =
+    columnHeaders table
+        |> Maybe.map (List.filter (\header -> extractHeaderCellText header == Just featureName))
+        |> Maybe.andThen ensureSingleton
+
+
+{-| Given the feature table, returns the row header names in the order they appear in the table.
+-}
+rowHeaderNames : ElmHtml msg -> Maybe (List String)
+rowHeaderNames table =
+    rowHeaders table
+        |> Maybe.map (List.map extractHeaderCellText)
+        |> Maybe.map flattenMaybeList
+
+
+{-| Given a feature display name (header text) and the feature table, return the row header cell for the given
+feature
+-}
+findRowHeaderByName : String -> ElmHtml msg -> Maybe (ElmHtml msg)
+findRowHeaderByName featureName table =
+    rowHeaders table
+        |> Maybe.map (List.filter (\header -> extractHeaderCellText header == Just featureName))
+        |> Maybe.andThen ensureSingleton
+
+
+{-| Given the feature table returns the column header cells in the order they appear in the table.
+-}
+columnHeaders : ElmHtml msg -> Maybe (List (ElmHtml msg))
+columnHeaders featureTable =
     let
         findColumnHeaderRow : ElmHtml msg -> Maybe (ElmHtml msg)
         findColumnHeaderRow html =
@@ -24,20 +62,17 @@ columnHeaderNames featureTable =
     in
         findColumnHeaderRow featureTable
             |> Maybe.andThen columnHeaderCells
-            |> Maybe.map (List.map extractHeaderCellText)
-            |> Maybe.map flattenMaybeList
 
 
-{-| Given the feature table, returns the row header names in the order they appear in the table.
+{-| Given the feature table, returns the row header cells in the order they appear in the table.
 -}
-rowHeaderNames : ElmHtml msg -> Maybe (List String)
-rowHeaderNames table =
+rowHeaders : ElmHtml msg -> Maybe (List (ElmHtml msg))
+rowHeaders table =
     let
         getRowHeader row =
             row
                 |> queryByTagName "th"
                 |> List.head
-                |> Maybe.andThen extractHeaderCellText
 
         rowHeaders =
             table
@@ -50,11 +85,23 @@ rowHeaderNames table =
             |> Maybe.map flattenMaybeList
 
 
+{-| Given a header cell, get the displayed text from it (which should be the feature's display name)
+-}
 extractHeaderCellText : ElmHtml msg -> Maybe String
 extractHeaderCellText th =
     queryByTagName "div" th
         |> List.head
         |> Maybe.map HtmlTestExtra.extractText
+        |> Maybe.andThen ensureSingleton
+
+
+{-| Given a header cell, get the hide button from it.
+-}
+extractHideButtonFromHeaderCell : ElmHtml msg -> Maybe (ElmHtml msg)
+extractHideButtonFromHeaderCell th =
+    queryByTagName "div" th
+        |> List.head
+        |> Maybe.map (queryByTagName "button")
         |> Maybe.andThen ensureSingleton
 
 

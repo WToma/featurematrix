@@ -378,7 +378,7 @@ renderHiddenFeatures model =
             not (List.isEmpty hiddenFeatures)
 
         renderShowFeature =
-            \f -> div [] [ text f.displayName, button [ onClick (ShowFeature f.featureId) ] [ text "(show)" ] ]
+            \f -> div [ class "hiddenFeatureItem" ] [ text f.displayName, button [ onClick (ShowFeature f.featureId) ] [ text "(show)" ] ]
     in
         div []
             (if hiddenFeaturesExist then

@@ -10,9 +10,10 @@ import ElmHtml.InternalTypes exposing (ElmHtml)
 import Set exposing (Set)
 import Helpers exposing (..)
 import Fuzz
-import TableViewHelpers exposing (columnHeaderNames, rowHeaderNames, findFeatureTableElmHtml, findIntersectionCell, findTextFieldInCell)
-import ControlPanelHelpers exposing (findShowHideModelButton, findExportImportTextField)
+import TableViewHelpers exposing (columnHeaderNames, rowHeaderNames, findFeatureTableElmHtml, findIntersectionCell, findTextFieldInCell, findColumnHeaderByName, findRowHeaderByName, extractHideButtonFromHeaderCell)
+import ControlPanelHelpers exposing (findShowHideModelButton, findExportImportTextField, findNewFeatureDescription, findNewFeatureName, findAddNewFeatureButton, findHiddenFeatureByName, findShowFeatureButton)
 import Json.Encode as JE
+import Tuple
 
 
 tableModeShowsAllFeatures : Test
@@ -125,6 +126,200 @@ importFeature =
                             ]
                         )
                     |> resultToExpectation
+        ]
+
+
+addFeature : Test
+addFeature =
+    describe "New features can be added to the feature table"
+        [ test "the feature table reflects the newly added feature" <|
+            \() ->
+                addFeatureAndFindFeatureTable "New Awesome Feature" "New Awesome Description" initialModel
+                    |> Result.map Tuple.first
+                    |> Result.map columnHeaderNames
+                    |> Result.andThen (Result.fromMaybe "column headers not found")
+                    |> Result.map (\h -> Expect.true "expected headers to contain the new feature name" (List.member "New Awesome Feature" h))
+                    |> resultToExpectation
+        , test "the intersection between a newly added feature and an existing feature can be edited" <|
+            \() ->
+                let
+                    addResult =
+                        addFeatureAndFindFeatureTable "New Awesome Feature" "New Awesome Description" initialModel
+
+                    table =
+                        Result.map Tuple.first addResult
+
+                    model =
+                        Result.map Tuple.second addResult
+                in
+                    table
+                        |> Result.andThen (typeIntoIntersection "New Awesome Feature" "Import" "New Awesome Intersection")
+                        |> Result.map2 (flip Main.update) model
+                        |> Result.andThen (getIntersectionByName "New Awesome Feature" "Import")
+                        |> Result.map (Expect.equal "New Awesome Intersection")
+                        |> resultToExpectation
+        , test "intersections between newly added features are reflected in the exported model" <|
+            \() ->
+                let
+                    addedBothModel =
+                        Result.Ok initialModel
+                            |> Result.andThen (addFeatureAndUpdateModel "Awesome Feature 1" "Awesome Desctiption 1")
+                            |> Result.andThen (addFeatureAndUpdateModel "Awesome Feature 2" "Awesome Description 2")
+
+                    importExportContent =
+                        addedBothModel
+                            |> Result.map render
+                            |> Result.map findFeatureTableElmHtml
+                            |> Result.andThen (Result.fromMaybe "feature table not found after adding features")
+                            |> Result.andThen (typeIntoIntersection "Awesome Feature 1" "Awesome Feature 2" "Everything is Awesome")
+                            |> Result.map2 (flip Main.update) addedBothModel
+                            |> Result.andThen showImportExportPanel
+                            |> Result.map render
+                            |> Result.andThen getImportExportContent
+                in
+                    importExportContent
+                        |> Result.map (\c -> Expect.true "expected import-export content to contain the new intersection" (String.contains "Everything is Awesome" c))
+                        |> resultToExpectation
+        , Test.skip <|
+            test "newly added feature are reflected in the exported model if no intersection is edited" <|
+                \() ->
+                    let
+                        importExportContent =
+                            Result.Ok initialModel
+                                |> Result.andThen (addFeatureAndUpdateModel "Awesome Feature 1" "Awesome Desctiption 1")
+                                |> Result.andThen showImportExportPanel
+                                |> Result.map render
+                                |> Result.andThen getImportExportContent
+                    in
+                        importExportContent
+                            |> Result.map
+                                (\c ->
+                                    Expect.true
+                                        "expected import-export model to contain the new feature's name and description"
+                                        ((String.contains "Awesome Feature 1" c) && (String.contains "Awesome Description 1" c))
+                                )
+                            |> resultToExpectation
+        ]
+
+
+hideFeature : Test
+hideFeature =
+    describe "Features can be hidden from the feature table using a button"
+        [ test "hidden features do not show up in the feature table" <|
+            \() ->
+                let
+                    featureTableAfterHide =
+                        Result.Ok initialModel
+                            |> Result.andThen (hideFeatureFromView "Import")
+                            |> Result.map render
+                            |> Result.map findFeatureTableElmHtml
+                            |> Result.andThen (Result.fromMaybe "feature table not found after hiding")
+
+                    verifyHeaders hs =
+                        Expect.false "expected the headers not to contain the hidden feature" (List.member "Import" hs)
+
+                    columnHeadersEx =
+                        featureTableAfterHide
+                            |> Result.map columnHeaderNames
+                            |> Result.andThen (Result.fromMaybe "column header names not found after hide")
+                            |> Result.map verifyHeaders
+                            |> resultToExpectation
+
+                    rowHeadersEx =
+                        featureTableAfterHide
+                            |> Result.map rowHeaderNames
+                            |> Result.andThen (Result.fromMaybe "row header names not found after hide")
+                            |> Result.map verifyHeaders
+                            |> resultToExpectation
+                in
+                    Expect.all [ \() -> columnHeadersEx, \() -> rowHeadersEx ] ()
+        , test "the row / column header hide button fires the same message" <|
+            \() ->
+                let
+                    featureTable =
+                        render initialModel
+                            |> findFeatureTableElmHtml
+                            |> Result.fromMaybe "feature table not found"
+
+                    msgOnRow =
+                        Result.andThen (pressHideButtonOnRow "Export") featureTable
+
+                    msgOnCol =
+                        Result.andThen (pressHideButtonOnColumn "Export") featureTable
+                in
+                    Expect.all [ expectNotError, Expect.equal msgOnCol ] msgOnRow
+        , test "intersections for hidden features are exported" <|
+            \() ->
+                hideFeatureFromView "Edit Intersection" initialModel
+                    -- initialModel has an intersection between this and Shows Features: "edited features are displayed"
+                    |> Result.andThen showImportExportPanel
+                    |> Result.map render
+                    |> Result.andThen getImportExportContent
+                    |> Result.map (\c -> Expect.true "the exported model should contain the hidden feature" (String.contains "edited features are displayed" c))
+                    |> resultToExpectation
+        , test "newly added features can be hidden" <|
+            \() ->
+                addFeatureAndFindFeatureTable "New Awesome Feature" "New Awesome Description" initialModel
+                    |> Result.map Tuple.second
+                    |> Result.andThen (hideFeatureFromView "New Awesome Feature")
+                    |> Result.map render
+                    |> Result.map findFeatureTableElmHtml
+                    |> Result.andThen (Result.fromMaybe "feature table not found after hiding")
+                    |> Result.map columnHeaderNames
+                    |> Result.andThen (Result.fromMaybe "column header names not found after hide")
+                    |> Result.map (\c -> Expect.false "column headers should not contain the hidden feature" (List.member "New Awesome Feature" c))
+                    |> resultToExpectation
+        , test "hidden features show up in the side bar, and they have a button that causes the feature to be shown again in the table along with its intersections which can be edited again" <|
+            \() ->
+                let
+                    hiddenAndShownModel =
+                        hideFeatureFromView "Edit Intersection" initialModel
+                            -- initialModel has an intersection between this and Shows Features: "edited features are displayed"
+                            |> Result.andThen (showFeature "Edit Intersection")
+
+                    hiddenAndShownTable =
+                        hiddenAndShownModel
+                            |> Result.map render
+                            |> Result.map findFeatureTableElmHtml
+                            |> Result.andThen (Result.fromMaybe "feature table not found after hide & show")
+
+                    headerNamesEx =
+                        hiddenAndShownTable
+                            |> Result.map columnHeaderNames
+                            |> Result.andThen (Result.fromMaybe "column header names not found after hide & show")
+                            |> Result.map (\c -> Expect.true "column headers include the hidden & shown feature name" (List.member "Edit Intersection" c))
+                            |> resultToExpectation
+
+                    intersectionEx =
+                        hiddenAndShownTable
+                            |> Result.andThen (findIntersectionCellText "Edit Intersection" "Shows Features")
+                            |> Result.map (\c -> Expect.true "intersection displays the correct text after hide & show" (c == "edited features are displayed"))
+                            |> resultToExpectation
+
+                    editIntersectionEx =
+                        hiddenAndShownTable
+                            |> Result.andThen (typeIntoIntersection "Edit Intersection" "Shows Features" "updated the hidden and shown intersection")
+                            |> Result.map2 (flip Main.update) hiddenAndShownModel
+                            |> Result.map (verifyIntersectionText "edit" "showFeatures" "updated the hidden and shown intersection")
+                            |> resultToExpectation
+                in
+                    Expect.all [ \() -> headerNamesEx, \() -> intersectionEx, \() -> editIntersectionEx ] ()
+        , Test.skip <|
+            test "import/export preserves the shown/hidden status of a feature" <|
+                \() ->
+                    let
+                        hiddenExportContent =
+                            hideFeatureFromView "Edit Intersection" initialModel
+                                |> Result.andThen showImportExportPanel
+                                |> Result.map render
+                                |> Result.andThen getImportExportContent
+                    in
+                        importAndUpdateModel "{}" initialModel
+                            |> resultAndThen2 importAndFindFeatureTable hiddenExportContent
+                            |> Result.map columnHeaderNames
+                            |> Result.andThen (Result.fromMaybe "column headers not found")
+                            |> Result.map (\h -> Expect.false "expected headers not to include the hidden feature" (List.member "Edit Intersection" h))
+                            |> resultToExpectation
         ]
 
 
@@ -363,6 +558,28 @@ getFeature model randomIndex =
         Result.fromMaybe ("no feature at index " ++ (toString featureIndex)) maybeFeature
 
 
+getFeatureByName : Main.Model -> String -> Result String Main.Feature
+getFeatureByName model displayName =
+    List.filter (\f -> f.displayName == displayName) model.features
+        |> ensureSingleton
+        |> Result.fromMaybe ("feature with header \"" ++ displayName ++ "\" was not in the model")
+
+
+getIntersectionByName : String -> String -> Main.Model -> Result String String
+getIntersectionByName displayName1 displayName2 model =
+    let
+        f1 =
+            getFeatureByName model displayName1 |> Result.map .featureId
+
+        f2 =
+            getFeatureByName model displayName2 |> Result.map .featureId
+    in
+        Result.map2 (,) f1 f2
+            |> Result.map orderTuple
+            |> Result.map ((flip Dict.get) model.intersections)
+            |> Result.map (Maybe.withDefault "")
+
+
 clickButton : ElmHtml Main.Msg -> Result String Main.Msg
 clickButton button =
     HtmlTestExtra.simulate Event.click button
@@ -393,15 +610,76 @@ updateImportExportContent newContent html =
         |> Result.andThen (HtmlTestExtra.simulate (Event.input newContent))
 
 
-importAndFindFeatureTable : String -> Main.Model -> Result String (ElmHtml Main.Msg)
-importAndFindFeatureTable typedText initialModel =
+importAndUpdateModel : String -> Main.Model -> Result String Main.Model
+importAndUpdateModel typedText initialModel =
     showImportExportPanel initialModel
         |> Result.map render
         |> Result.andThen (updateImportExportContent typedText)
         |> Result.map ((flip Main.update) initialModel)
+
+
+importAndFindFeatureTable : String -> Main.Model -> Result String (ElmHtml Main.Msg)
+importAndFindFeatureTable typedText initialModel =
+    importAndUpdateModel typedText initialModel
         |> Result.map render
         |> Result.map findFeatureTableElmHtml
         |> Result.andThen (Result.fromMaybe "feature table not found in view after import")
+
+
+addFeatureAndFindFeatureTable : String -> String -> Main.Model -> Result String ( ElmHtml Main.Msg, Main.Model )
+addFeatureAndFindFeatureTable newFeatureName newFeatureDescription initialModel =
+    let
+        newModel =
+            addFeatureAndUpdateModel newFeatureName newFeatureDescription initialModel
+    in
+        newModel
+            |> Result.map render
+            |> Result.map findFeatureTableElmHtml
+            |> Result.andThen (Result.fromMaybe "feature table not found in view after import")
+            |> Result.map2 (flip (,)) newModel
+
+
+addFeatureAndUpdateModel : String -> String -> Main.Model -> Result String Main.Model
+addFeatureAndUpdateModel newFeatureName newFeatureDescription initialModel =
+    let
+        chainedUpdateReducer : (ElmHtml Main.Msg -> Result String Main.Msg) -> Result String Main.Model -> Result String Main.Model
+        chainedUpdateReducer msgGenerator model =
+            let
+                rendered =
+                    Result.map render model
+
+                msg =
+                    Result.andThen msgGenerator rendered
+            in
+                Result.map2 Main.update msg model
+    in
+        List.foldl chainedUpdateReducer
+            (Result.Ok initialModel)
+            [ updateNewFeatureName newFeatureName
+            , updateNewFeatureDescription newFeatureDescription
+            , pressNewFeatureButton
+            ]
+
+
+updateNewFeatureName : String -> ElmHtml Main.Msg -> Result String Main.Msg
+updateNewFeatureName newFeatureName html =
+    findNewFeatureName html
+        |> Result.fromMaybe "new feature name textfield not found"
+        |> Result.andThen (HtmlTestExtra.simulate (Event.input newFeatureName))
+
+
+updateNewFeatureDescription : String -> ElmHtml Main.Msg -> Result String Main.Msg
+updateNewFeatureDescription newFeatureDescription html =
+    findNewFeatureDescription html
+        |> Result.fromMaybe "new feature description textfield not found"
+        |> Result.andThen (HtmlTestExtra.simulate (Event.input newFeatureDescription))
+
+
+pressNewFeatureButton : ElmHtml Main.Msg -> Result String Main.Msg
+pressNewFeatureButton html =
+    findAddNewFeatureButton html
+        |> Result.fromMaybe "new feature button not found"
+        |> Result.andThen (HtmlTestExtra.simulate Event.click)
 
 
 verifyTextContainsIntersections : String -> Main.Model -> Expectation
@@ -446,3 +724,48 @@ expectNotError r =
 
         Result.Err msg ->
             Expect.fail msg
+
+
+hideFeatureFromView : String -> Main.Model -> Result String Main.Model
+hideFeatureFromView featureName model =
+    model
+        |> render
+        |> findFeatureTableElmHtml
+        |> Result.fromMaybe "feature table not found"
+        |> Result.andThen (pressHideButtonOnRow featureName)
+        |> Result.map ((flip Main.update) model)
+
+
+pressHideButtonOnRow : String -> ElmHtml Main.Msg -> Result String Main.Msg
+pressHideButtonOnRow featureName featureTable =
+    findRowHeaderByName featureName featureTable
+        |> Result.fromMaybe ("row header not found for " ++ featureName)
+        |> Result.map extractHideButtonFromHeaderCell
+        |> Result.andThen (Result.fromMaybe "hide button not found on row header")
+        |> Result.andThen (HtmlTestExtra.simulate Event.click)
+
+
+pressHideButtonOnColumn : String -> ElmHtml Main.Msg -> Result String Main.Msg
+pressHideButtonOnColumn featureName featureTable =
+    findColumnHeaderByName featureName featureTable
+        |> Result.fromMaybe ("column header not found for " ++ featureName)
+        |> Result.map extractHideButtonFromHeaderCell
+        |> Result.andThen (Result.fromMaybe "hide button not found on column header")
+        |> Result.andThen (HtmlTestExtra.simulate Event.click)
+
+
+showFeature : String -> Main.Model -> Result String Main.Model
+showFeature featureName model =
+    model
+        |> render
+        |> pressShowFeatureButton featureName
+        |> Result.map ((flip Main.update) model)
+
+
+pressShowFeatureButton : String -> ElmHtml Main.Msg -> Result String Main.Msg
+pressShowFeatureButton featureName html =
+    findHiddenFeatureByName featureName html
+        |> Result.fromMaybe ("hidden feature " ++ featureName ++ " not found")
+        |> Result.map findShowFeatureButton
+        |> Result.andThen (Result.fromMaybe ("show feature button not found for hidden feature " ++ featureName))
+        |> Result.andThen (HtmlTestExtra.simulate Event.click)
