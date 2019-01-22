@@ -9,9 +9,11 @@ import HtmlTestExtra
 import ElmHtml.InternalTypes exposing (ElmHtml)
 import Set exposing (Set)
 import Helpers exposing (..)
-import Fuzz
+import TestHelpers exposing (resultToExpectation, expectNotError)
 import TableViewHelpers exposing (columnHeaderNames, rowHeaderNames, findFeatureTableElmHtml, findIntersectionCell, findTextFieldInCell, findColumnHeaderByName, findRowHeaderByName, extractHideButtonFromHeaderCell)
-import ControlPanelHelpers exposing (findShowHideModelButton, findExportImportTextField, findNewFeatureDescription, findNewFeatureName, findAddNewFeatureButton, findHiddenFeatureByName, findShowFeatureButton)
+import TableTestHelpers exposing (verifyAllIntersectionsInTable, typeIntoIntersectionTest, expectIntersections, typeIntoIntersection, hideFeatureFromView, pressHideButtonOnRow, pressHideButtonOnColumn, findIntersectionCellText, testTable)
+import ControlPanelHelpers exposing (showImportExportPanel, getImportExportContent, addFeatureAndUpdateModel, showFeature, importAndUpdateModel)
+import ModelTestHelpers exposing (verifyIntersectionText, getIntersectionByName, verifyTextContainsIntersections)
 import Json.Encode as JE
 import Tuple
 
@@ -323,11 +325,6 @@ hideFeature =
         ]
 
 
-render : Main.Model -> ElmHtml Main.Msg
-render model =
-    Main.view model |> HtmlTestExtra.fromHtml
-
-
 initialView : ElmHtml Main.Msg
 initialView =
     render initialModel
@@ -362,21 +359,6 @@ testInitialTable t =
     testTable initialModel t
 
 
-testTable : Main.Model -> (ElmHtml Main.Msg -> Result String Expectation) -> Expectation
-testTable initialModel t =
-    let
-        table =
-            initialModel
-                |> render
-                |> findFeatureTableElmHtml
-                |> Result.fromMaybe "feature table not found"
-
-        testResult =
-            Result.andThen t table
-    in
-        resultToExpectation testResult
-
-
 dummyFeatureDisplayNames : List String
 dummyFeatureDisplayNames =
     List.map (\df -> df.displayName) Main.dummyFeatures
@@ -392,230 +374,9 @@ expectHeaderNamesToBe getHeadersFn nameInErr expectedHeaderNames =
                 |> Result.map (Expect.equalSets (Set.fromList expectedHeaderNames))
 
 
-typeIntoIntersectionTest : String -> Main.Model -> (Main.Model -> Result String Main.Model) -> (String -> String -> String -> Main.Model -> Result String Expectation) -> Test
-typeIntoIntersectionTest title modelBeforePreamble preamble verification =
-    fuzz3 Fuzz.int Fuzz.int Fuzz.string title <|
-        \rowRandom colRandom intersectionText ->
-            let
-                initialModel =
-                    preamble modelBeforePreamble
-
-                testRowAndCol : Main.Model -> Main.Feature -> Main.Feature -> ElmHtml Main.Msg -> Result String Expectation
-                testRowAndCol initialModel rowFeature colFeature table =
-                    typeIntoIntersection rowFeature.displayName colFeature.displayName intersectionText table
-                        |> Result.map ((flip Main.update) initialModel)
-                        |> Result.andThen (verification rowFeature.featureId colFeature.featureId intersectionText)
-
-                doTest : Main.Model -> ElmHtml Main.Msg -> Result String Expectation
-                doTest initialModel table =
-                    resultAndThen2
-                        (\r c -> testRowAndCol initialModel r c table)
-                        (getFeature initialModel rowRandom)
-                        (getFeature initialModel colRandom)
-            in
-                preamble modelBeforePreamble
-                    |> Result.map (\m -> testTable m (doTest m))
-                    |> resultToExpectation
-
-
-typeIntoIntersection : String -> String -> String -> ElmHtml Main.Msg -> Result String Main.Msg
-typeIntoIntersection rowLabel colLabel textToInsert html =
-    let
-        event =
-            Event.input textToInsert
-
-        errorText =
-            "could not find the cell for '" ++ rowLabel ++ "' / '" ++ colLabel ++ "' in the feature table"
-    in
-        findIntersectionCell rowLabel colLabel html
-            |> Result.andThen findTextFieldInCell
-            |> Result.andThen (HtmlTestExtra.simulate event)
-
-
-verifyIntersectionText : String -> String -> String -> Main.Model -> Expectation
-verifyIntersectionText rowFeatureId colFeatureId expectedText model =
-    let
-        valueAtCell =
-            Dict.get (orderTuple ( rowFeatureId, colFeatureId )) model.intersections
-
-        location =
-            "at intersection " ++ rowFeatureId ++ " / " ++ colFeatureId
-    in
-        if expectedText /= "" then
-            case valueAtCell of
-                Just valueAtCell ->
-                    Expect.equal expectedText valueAtCell
-                        |> Expect.onFail ("expected '" ++ expectedText ++ "', got '" ++ valueAtCell ++ "' " ++ location)
-
-                Nothing ->
-                    Expect.fail ("there was nothing " ++ location)
-        else
-            case valueAtCell of
-                Just valueAtCell ->
-                    Expect.fail ("entering an empty string should have weased the intesection, but got '" ++ valueAtCell ++ "' " ++ location)
-
-                Nothing ->
-                    Expect.pass
-
-
-verifyAllIntersectionsInTable : Main.Model -> ElmHtml msg -> Expectation
-verifyAllIntersectionsInTable model table =
-    let
-        featureIds =
-            List.map .featureId model.features
-
-        allIntersections =
-            List.concatMap (\f1 -> List.map ((,) f1) featureIds) featureIds
-
-        allExpectations : List (ElmHtml msg -> Expectation)
-        allExpectations =
-            List.map
-                (\( f1, f2 ) -> \table -> resultToExpectation (verifyIntersectionTextInTable f1 f2 model table))
-                allIntersections
-    in
-        Expect.all allExpectations table
-
-
-verifyIntersectionTextInTable : String -> String -> Main.Model -> ElmHtml msg -> Result String Expectation
-verifyIntersectionTextInTable rowFeatureId colFeatureId model table =
-    let
-        featureIdToFeatureMap =
-            Dict.fromList <| List.map (\f -> ( f.featureId, f )) model.features
-
-        rowHeaderName : Result String String
-        rowHeaderName =
-            Dict.get rowFeatureId featureIdToFeatureMap
-                |> Result.fromMaybe ("no such feature in model for row feature ID: " ++ rowFeatureId)
-                |> Result.map .displayName
-
-        colHeaderName : Result String String
-        colHeaderName =
-            Dict.get colFeatureId featureIdToFeatureMap
-                |> Result.fromMaybe ("no such feature in model for column feature ID: " ++ colFeatureId)
-                |> Result.map .displayName
-
-        expectedText : String
-        expectedText =
-            Dict.get (orderTuple ( rowFeatureId, colFeatureId )) model.intersections
-                |> Maybe.withDefault ""
-
-        verify : String -> String -> Result String Expectation
-        verify row col =
-            expectIntersection row col expectedText table
-    in
-        resultAndThen2 verify rowHeaderName colHeaderName
-
-
-expectIntersection : String -> String -> String -> ElmHtml msg -> Result String Expectation
-expectIntersection rowHeaderName colHeaderName text table =
-    findIntersectionCellText rowHeaderName colHeaderName table
-        |> Result.map (Expect.equal text)
-
-
-expectIntersections : List ( String, String, String ) -> ElmHtml msg -> Expectation
-expectIntersections expectations table =
-    Expect.all (List.map (\( r, c, t ) -> \tab -> (expectIntersection r c t tab |> resultToExpectation)) expectations) table
-
-
-findIntersectionCellText : String -> String -> ElmHtml msg -> Result String String
-findIntersectionCellText rowHeaderName colHeaderName table =
-    findIntersectionCell rowHeaderName colHeaderName table
-        |> Result.andThen findTextFieldInCell
-        |> Result.map HtmlTestExtra.getAttributes
-        |> Result.map (getStringAttribute "value")
-        |> Result.map (Maybe.withDefault "")
-
-
-resultToExpectation : Result String Expectation -> Expectation
-resultToExpectation res =
-    case res of
-        Err reason ->
-            Expect.fail reason
-
-        Ok expectation ->
-            expectation
-
-
-getStringAttribute : String -> ( Dict.Dict String String, a ) -> Maybe String
-getStringAttribute attribute ( stringAttributes, _ ) =
-    Dict.get attribute stringAttributes
-
-
-getBoolAttribute : String -> ( a, Dict.Dict String Bool ) -> Maybe Bool
-getBoolAttribute attribute ( _, boolAttributes ) =
-    Dict.get attribute boolAttributes
-
-
-getFeature : Main.Model -> Int -> Result String Main.Feature
-getFeature model randomIndex =
-    let
-        featureIndex =
-            randomIndex % (List.length model.features)
-
-        maybeFeature =
-            listElemAtIndex featureIndex model.features
-    in
-        Result.fromMaybe ("no feature at index " ++ (toString featureIndex)) maybeFeature
-
-
-getFeatureByName : Main.Model -> String -> Result String Main.Feature
-getFeatureByName model displayName =
-    List.filter (\f -> f.displayName == displayName) model.features
-        |> ensureSingleton
-        |> Result.fromMaybe ("feature with header \"" ++ displayName ++ "\" was not in the model")
-
-
-getIntersectionByName : String -> String -> Main.Model -> Result String String
-getIntersectionByName displayName1 displayName2 model =
-    let
-        f1 =
-            getFeatureByName model displayName1 |> Result.map .featureId
-
-        f2 =
-            getFeatureByName model displayName2 |> Result.map .featureId
-    in
-        Result.map2 (,) f1 f2
-            |> Result.map orderTuple
-            |> Result.map ((flip Dict.get) model.intersections)
-            |> Result.map (Maybe.withDefault "")
-
-
 clickButton : ElmHtml Main.Msg -> Result String Main.Msg
 clickButton button =
     HtmlTestExtra.simulate Event.click button
-
-
-showImportExportPanel : Main.Model -> Result String Main.Model
-showImportExportPanel initialModel =
-    render initialModel
-        |> findShowHideModelButton
-        |> Result.fromMaybe "show/hide model button not found"
-        |> Result.andThen clickButton
-        |> Result.map ((flip Main.update) initialModel)
-
-
-getImportExportContent : ElmHtml msg -> Result String String
-getImportExportContent html =
-    findExportImportTextField html
-        |> Result.fromMaybe "import/export textarea not found"
-        |> Result.map HtmlTestExtra.getAttributes
-        |> Result.map (getStringAttribute "value")
-        |> Result.map (Maybe.withDefault "")
-
-
-updateImportExportContent : String -> ElmHtml Main.Msg -> Result String Main.Msg
-updateImportExportContent newContent html =
-    findExportImportTextField html
-        |> Result.fromMaybe "import/export textarea not found"
-        |> Result.andThen (HtmlTestExtra.simulate (Event.input newContent))
-
-
-importAndUpdateModel : String -> Main.Model -> Result String Main.Model
-importAndUpdateModel typedText initialModel =
-    showImportExportPanel initialModel
-        |> Result.map render
-        |> Result.andThen (updateImportExportContent typedText)
-        |> Result.map ((flip Main.update) initialModel)
 
 
 importAndFindFeatureTable : String -> Main.Model -> Result String (ElmHtml Main.Msg)
@@ -639,70 +400,6 @@ addFeatureAndFindFeatureTable newFeatureName newFeatureDescription initialModel 
             |> Result.map2 (flip (,)) newModel
 
 
-addFeatureAndUpdateModel : String -> String -> Main.Model -> Result String Main.Model
-addFeatureAndUpdateModel newFeatureName newFeatureDescription initialModel =
-    let
-        chainedUpdateReducer : (ElmHtml Main.Msg -> Result String Main.Msg) -> Result String Main.Model -> Result String Main.Model
-        chainedUpdateReducer msgGenerator model =
-            let
-                rendered =
-                    Result.map render model
-
-                msg =
-                    Result.andThen msgGenerator rendered
-            in
-                Result.map2 Main.update msg model
-    in
-        List.foldl chainedUpdateReducer
-            (Result.Ok initialModel)
-            [ updateNewFeatureName newFeatureName
-            , updateNewFeatureDescription newFeatureDescription
-            , pressNewFeatureButton
-            ]
-
-
-updateNewFeatureName : String -> ElmHtml Main.Msg -> Result String Main.Msg
-updateNewFeatureName newFeatureName html =
-    findNewFeatureName html
-        |> Result.fromMaybe "new feature name textfield not found"
-        |> Result.andThen (HtmlTestExtra.simulate (Event.input newFeatureName))
-
-
-updateNewFeatureDescription : String -> ElmHtml Main.Msg -> Result String Main.Msg
-updateNewFeatureDescription newFeatureDescription html =
-    findNewFeatureDescription html
-        |> Result.fromMaybe "new feature description textfield not found"
-        |> Result.andThen (HtmlTestExtra.simulate (Event.input newFeatureDescription))
-
-
-pressNewFeatureButton : ElmHtml Main.Msg -> Result String Main.Msg
-pressNewFeatureButton html =
-    findAddNewFeatureButton html
-        |> Result.fromMaybe "new feature button not found"
-        |> Result.andThen (HtmlTestExtra.simulate Event.click)
-
-
-verifyTextContainsIntersections : String -> Main.Model -> Expectation
-verifyTextContainsIntersections text model =
-    let
-        intersections =
-            Dict.toList model.intersections
-
-        intersectionPresent ( ( smallerKey, largerKey ) as k, intersection ) =
-            if String.contains intersection text then
-                Result.Ok k
-            else
-                Result.Err ("the value for (" ++ smallerKey ++ ", " ++ largerKey ++ ") (" ++ intersection ++ ") was not present")
-
-        results =
-            List.map intersectionPresent intersections
-
-        result =
-            resultListFoldl (always (always ())) () results
-    in
-        expectNotError result
-
-
 verifyShownModelContainsTypedIntersection : String -> Result String String -> Result String Expectation
 verifyShownModelContainsTypedIntersection expected maybeContent =
     let
@@ -716,56 +413,6 @@ verifyShownModelContainsTypedIntersection expected maybeContent =
         Result.map verify maybeContent
 
 
-expectNotError : Result String a -> Expectation
-expectNotError r =
-    case r of
-        Result.Ok _ ->
-            Expect.pass
-
-        Result.Err msg ->
-            Expect.fail msg
-
-
-hideFeatureFromView : String -> Main.Model -> Result String Main.Model
-hideFeatureFromView featureName model =
-    model
-        |> render
-        |> findFeatureTableElmHtml
-        |> Result.fromMaybe "feature table not found"
-        |> Result.andThen (pressHideButtonOnRow featureName)
-        |> Result.map ((flip Main.update) model)
-
-
-pressHideButtonOnRow : String -> ElmHtml Main.Msg -> Result String Main.Msg
-pressHideButtonOnRow featureName featureTable =
-    findRowHeaderByName featureName featureTable
-        |> Result.fromMaybe ("row header not found for " ++ featureName)
-        |> Result.map extractHideButtonFromHeaderCell
-        |> Result.andThen (Result.fromMaybe "hide button not found on row header")
-        |> Result.andThen (HtmlTestExtra.simulate Event.click)
-
-
-pressHideButtonOnColumn : String -> ElmHtml Main.Msg -> Result String Main.Msg
-pressHideButtonOnColumn featureName featureTable =
-    findColumnHeaderByName featureName featureTable
-        |> Result.fromMaybe ("column header not found for " ++ featureName)
-        |> Result.map extractHideButtonFromHeaderCell
-        |> Result.andThen (Result.fromMaybe "hide button not found on column header")
-        |> Result.andThen (HtmlTestExtra.simulate Event.click)
-
-
-showFeature : String -> Main.Model -> Result String Main.Model
-showFeature featureName model =
-    model
-        |> render
-        |> pressShowFeatureButton featureName
-        |> Result.map ((flip Main.update) model)
-
-
-pressShowFeatureButton : String -> ElmHtml Main.Msg -> Result String Main.Msg
-pressShowFeatureButton featureName html =
-    findHiddenFeatureByName featureName html
-        |> Result.fromMaybe ("hidden feature " ++ featureName ++ " not found")
-        |> Result.map findShowFeatureButton
-        |> Result.andThen (Result.fromMaybe ("show feature button not found for hidden feature " ++ featureName))
-        |> Result.andThen (HtmlTestExtra.simulate Event.click)
+render : Main.Model -> ElmHtml Main.Msg
+render model =
+    Main.view model |> HtmlTestExtra.fromHtml
