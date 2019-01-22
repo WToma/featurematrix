@@ -3,6 +3,8 @@ module Helpers exposing (..)
 {-| Random non-project specific helper functions
 -}
 
+import Dict
+
 
 {-| Return Just x if the input is [x], Nothing otherwise. Useful for checking that a given list has exactly one element
 and getting that element.
@@ -198,3 +200,22 @@ resultListFoldl f x0 =
                     err
     in
         List.foldl fR (Result.Ok x0)
+
+
+{-| Counts the number of occurrences for each element in the list.
+
+    counts ["a", "b", "a"] --> Dict.fromList [("a", 2), ("b", 1)]
+    counts [] --> Dict.fromList []
+
+-}
+counts : List comparable -> Dict.Dict comparable Int
+counts xs =
+    let
+        inc x d =
+            let
+                currentValue =
+                    Dict.get x d |> Maybe.withDefault 0
+            in
+                Dict.insert x (currentValue + 1) d
+    in
+        List.foldl inc Dict.empty xs

@@ -4,18 +4,22 @@ import Html exposing (Html, button, div, text, textarea, h2)
 import Html.Events exposing (onClick, onInput)
 import Html.Attributes exposing (class, type_, id, value, readonly, placeholder)
 import Dict exposing (Dict)
+import Set
 import Char
 import Json.Encode as JE
 import Json.Decode as JD
+import Helpers exposing (counts, flattenMaybeList)
 
 
 main : Program Never Model Msg
 main =
     Html.beginnerProgram
         { model =
-            { features = dummyFeatures
-            , featureVisibility = allFeaturesVisible dummyFeatures
-            , intersections = Dict.empty
+            { persistent =
+                { features = dummyFeatures
+                , featureVisibility = allFeaturesVisible dummyFeatures
+                , intersections = Dict.empty
+                }
             , parseError = Nothing
             , showSerialized = False
             , newFeaturePanelState =
@@ -29,10 +33,15 @@ main =
         }
 
 
-type alias Model =
+type alias PersistentModel =
     { features : List Feature
     , featureVisibility : Dict String Bool
     , intersections : Dict ( String, String ) String
+    }
+
+
+type alias Model =
+    { persistent : PersistentModel
     , parseError : Maybe String
     , showSerialized : Bool
     , newFeaturePanelState :
@@ -162,9 +171,23 @@ update msg model =
     case msg of
         IntersectionUpdated smallerId largerId newValue ->
             if newValue /= "" then
-                { model | intersections = Dict.insert ( smallerId, largerId ) newValue model.intersections }
+                let
+                    oldPersistent =
+                        model.persistent
+
+                    newPersistent =
+                        { oldPersistent | intersections = Dict.insert ( smallerId, largerId ) newValue oldPersistent.intersections }
+                in
+                    { model | persistent = newPersistent }
             else
-                { model | intersections = Dict.remove ( smallerId, largerId ) model.intersections }
+                let
+                    oldPersistent =
+                        model.persistent
+
+                    newPersistent =
+                        { oldPersistent | intersections = Dict.remove ( smallerId, largerId ) model.persistent.intersections }
+                in
+                    { model | persistent = newPersistent }
 
         HideModel ->
             { model | showSerialized = False }
@@ -173,12 +196,12 @@ update msg model =
             { model | showSerialized = True }
 
         SerializedModelUpdated str ->
-            case decodeModel str of
-                Ok newIntersections ->
-                    { model | intersections = newIntersections, parseError = Nothing }
+            case decodePersistentModel str of
+                Ok newPersistent ->
+                    { model | persistent = newPersistent, parseError = Nothing }
 
-                Err jsonParsingFailure ->
-                    { model | parseError = Just jsonParsingFailure }
+                Err failures ->
+                    { model | parseError = Just (String.join "; " failures) }
 
         NFPShortNameUpdated str ->
             let
@@ -201,9 +224,16 @@ update msg model =
                 { model | newFeaturePanelState = updatedNfpState }
 
         AddNewFeature shortName description ->
-            case addNewFeature model.features model.featureVisibility shortName description of
+            case addNewFeature model.persistent.features model.persistent.featureVisibility shortName description of
                 Result.Ok ( newFeatures, newVisibility ) ->
-                    { model | features = newFeatures, featureVisibility = newVisibility }
+                    let
+                        oldPersistent =
+                            model.persistent
+
+                        newPersistent =
+                            { oldPersistent | features = newFeatures, featureVisibility = newVisibility }
+                    in
+                        { model | persistent = newPersistent }
 
                 Result.Err reason ->
                     let
@@ -218,16 +248,28 @@ update msg model =
         HideFeature featureId ->
             let
                 newFeatureVisibility =
-                    Dict.insert featureId False model.featureVisibility
+                    Dict.insert featureId False model.persistent.featureVisibility
+
+                oldPersistent =
+                    model.persistent
+
+                newPersistent =
+                    { oldPersistent | featureVisibility = newFeatureVisibility }
             in
-                { model | featureVisibility = newFeatureVisibility }
+                { model | persistent = newPersistent }
 
         ShowFeature featureId ->
             let
                 newFeatureVisibility =
-                    Dict.insert featureId True model.featureVisibility
+                    Dict.insert featureId True model.persistent.featureVisibility
+
+                oldPersistent =
+                    model.persistent
+
+                newPersistent =
+                    { oldPersistent | featureVisibility = newFeatureVisibility }
             in
-                { model | featureVisibility = newFeatureVisibility }
+                { model | persistent = newPersistent }
 
 
 mapFirst : (a -> a) -> List a -> List a
@@ -328,7 +370,7 @@ renderMainArea : Model -> Html Msg
 renderMainArea model =
     div [ class "featureTableContainer" ]
         [ div [] [ text (Maybe.withDefault "" model.parseError) ]
-        , renderFeatureTableGeneric (renderIntersectionEditBox model.intersections) model.features model.featureVisibility
+        , renderFeatureTableGeneric (renderIntersectionEditBox model.persistent.intersections) model.persistent.features model.persistent.featureVisibility
         ]
 
 
@@ -344,7 +386,7 @@ renderModelInputOutput : Model -> Html Msg
 renderModelInputOutput model =
     div [ class "controlPanelWrapper" ]
         [ if model.showSerialized then
-            textarea [ class "saveLoadBox", value (encodeModel model.intersections), readonly False, onInput SerializedModelUpdated ] []
+            textarea [ class "saveLoadBox", value (encodePersistentModel model.persistent), readonly False, onInput SerializedModelUpdated ] []
           else
             text ""
         , button
@@ -364,11 +406,11 @@ renderModelInputOutput model =
                 )
             ]
         , renderFeatureAdd model
-        , renderHiddenFeatures model
+        , renderHiddenFeatures model.persistent
         ]
 
 
-renderHiddenFeatures : Model -> Html Msg
+renderHiddenFeatures : PersistentModel -> Html Msg
 renderHiddenFeatures model =
     let
         hiddenFeatures =
@@ -399,9 +441,33 @@ renderFeatureAdd model =
         ]
 
 
-encodeModel : Dict ( String, String ) String -> String
-encodeModel intersectionValues =
-    JE.encode 4 (JE.list (List.map encodeIntersectionEntry (Dict.toList intersectionValues)))
+encodePersistentModel : PersistentModel -> String
+encodePersistentModel persistentModel =
+    JE.encode 4 <|
+        JE.object
+            [ ( "intersections", encodeIntersections persistentModel.intersections )
+            , ( "features", encodeFeatures persistentModel.features )
+            , ( "featureVisibilities", encodeFeatureVisibilities persistentModel.featureVisibility )
+            ]
+
+
+encodeFeatures : List Feature -> JE.Value
+encodeFeatures features =
+    JE.list (List.map encodeFeature features)
+
+
+encodeFeature : Feature -> JE.Value
+encodeFeature feature =
+    JE.object
+        [ ( "featureId", JE.string feature.featureId )
+        , ( "displayName", JE.string feature.displayName )
+        , ( "description", JE.string feature.description )
+        ]
+
+
+encodeIntersections : Dict ( String, String ) String -> JE.Value
+encodeIntersections intersectionValues =
+    JE.list (List.map encodeIntersectionEntry (Dict.toList intersectionValues))
 
 
 encodeIntersectionEntry : ( ( String, String ), String ) -> JE.Value
@@ -413,13 +479,104 @@ encodeIntersectionEntry ( ( smallerKey, largerKey ), value ) =
         ]
 
 
-decodeModel : String -> Result String (Dict ( String, String ) String)
-decodeModel =
-    JD.decodeString parseModel
+encodeFeatureVisibilities : Dict String Bool -> JE.Value
+encodeFeatureVisibilities featureVisibilities =
+    let
+        encodeEntry ( featureId, visible ) =
+            JE.object [ ( "featureId", JE.string featureId ), ( "visible", JE.bool visible ) ]
+    in
+        JE.list (List.map encodeEntry (Dict.toList featureVisibilities))
 
 
-parseModel : JD.Decoder (Dict ( String, String ) String)
-parseModel =
+{-| Returns the model if the model is fine, or the messages describing the problems otherwise
+-}
+validatePersistentModel : PersistentModel -> Result (List String) PersistentModel
+validatePersistentModel persistentModel =
+    let
+        nonUniqueEntries xs =
+            counts xs |> Dict.filter (\_ count -> count > 1) |> Dict.toList |> List.map Tuple.first
+
+        reportNonUniqueEntries desc xs =
+            let
+                nonUnique =
+                    nonUniqueEntries xs
+            in
+                if List.isEmpty nonUnique then
+                    Nothing
+                else
+                    Just (desc ++ ": " ++ (String.join ", " nonUnique))
+
+        validFeatureIds =
+            List.map .featureId persistentModel.features
+
+        reportInvalidFeatureId desc id =
+            if List.member id validFeatureIds then
+                Nothing
+            else
+                Just (desc ++ ": " ++ id)
+
+        featuresProblems =
+            [ reportNonUniqueEntries "The following feature IDs are duplicated" (List.map .featureId persistentModel.features)
+            , reportNonUniqueEntries "The following feature names are duplicated" (List.map .displayName persistentModel.features)
+            ]
+
+        visibilityProblems =
+            persistentModel.featureVisibility
+                |> Dict.toList
+                |> List.map Tuple.first
+                |> List.map (reportInvalidFeatureId "Invalid feature ID in the visibility list")
+
+        keysInIntersections =
+            Set.union
+                (persistentModel.intersections |> Dict.toList |> List.map Tuple.first |> List.map Tuple.first |> Set.fromList)
+                (persistentModel.intersections |> Dict.toList |> List.map Tuple.first |> List.map Tuple.second |> Set.fromList)
+                |> Set.toList
+
+        intersectionProblems =
+            keysInIntersections
+                |> List.map (reportInvalidFeatureId "Invalid feature ID in the intersection map")
+
+        allProblems =
+            List.concat [ featuresProblems, visibilityProblems, intersectionProblems ] |> flattenMaybeList
+    in
+        if List.isEmpty allProblems then
+            Result.Ok persistentModel
+        else
+            Result.Err allProblems
+
+
+decodePersistentModel : String -> Result (List String) PersistentModel
+decodePersistentModel str =
+    JD.decodeString parsePersistentModel str
+        |> Result.mapError List.singleton
+        |> Result.andThen validatePersistentModel
+
+
+parsePersistentModel : JD.Decoder PersistentModel
+parsePersistentModel =
+    JD.map3 PersistentModel
+        (JD.field "features" parseFeatures)
+        (JD.field "featureVisibilities" parseFeatureVisibilities)
+        (JD.field "intersections" parseIntersections)
+
+
+parseFeatures : JD.Decoder (List Feature)
+parseFeatures =
+    JD.list <|
+        JD.map3 Feature
+            (JD.field "featureId" JD.string)
+            (JD.field "displayName" JD.string)
+            (JD.field "description" JD.string)
+
+
+parseFeatureVisibilities : JD.Decoder (Dict String Bool)
+parseFeatureVisibilities =
+    JD.list (JD.map2 (,) (JD.field "featureId" JD.string) (JD.field "visible" JD.bool))
+        |> JD.map Dict.fromList
+
+
+parseIntersections : JD.Decoder (Dict ( String, String ) String)
+parseIntersections =
     JD.map Dict.fromList (JD.list parseIntersectionEntry)
 
 

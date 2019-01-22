@@ -73,7 +73,7 @@ verifyAllIntersectionsInTable : Main.Model -> ElmHtml msg -> Expectation
 verifyAllIntersectionsInTable model table =
     let
         featureIds =
-            List.map .featureId model.features
+            List.map .featureId model.persistent.features
 
         allIntersections =
             List.concatMap (\f1 -> List.map ((,) f1) featureIds) featureIds
@@ -91,7 +91,7 @@ verifyIntersectionTextInTable : String -> String -> Main.Model -> ElmHtml msg ->
 verifyIntersectionTextInTable rowFeatureId colFeatureId model table =
     let
         featureIdToFeatureMap =
-            Dict.fromList <| List.map (\f -> ( f.featureId, f )) model.features
+            Dict.fromList <| List.map (\f -> ( f.featureId, f )) model.persistent.features
 
         rowHeaderName : Result String String
         rowHeaderName =
@@ -107,7 +107,7 @@ verifyIntersectionTextInTable rowFeatureId colFeatureId model table =
 
         expectedText : String
         expectedText =
-            Dict.get (orderTuple ( rowFeatureId, colFeatureId )) model.intersections
+            Dict.get (orderTuple ( rowFeatureId, colFeatureId )) model.persistent.intersections
                 |> Maybe.withDefault ""
 
         verify : String -> String -> Result String Expectation

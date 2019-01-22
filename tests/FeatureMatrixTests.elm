@@ -13,7 +13,7 @@ import TestHelpers exposing (resultToExpectation, expectNotError)
 import TableViewHelpers exposing (columnHeaderNames, rowHeaderNames, findFeatureTableElmHtml, findIntersectionCell, findTextFieldInCell, findColumnHeaderByName, findRowHeaderByName, extractHideButtonFromHeaderCell)
 import TableTestHelpers exposing (verifyAllIntersectionsInTable, typeIntoIntersectionTest, expectIntersections, typeIntoIntersection, hideFeatureFromView, pressHideButtonOnRow, pressHideButtonOnColumn, findIntersectionCellText, testTable)
 import ControlPanelHelpers exposing (showImportExportPanel, getImportExportContent, addFeatureAndUpdateModel, showFeature, importAndUpdateModel)
-import ModelTestHelpers exposing (verifyIntersectionText, getIntersectionByName, verifyTextContainsIntersections)
+import ModelTestHelpers exposing (verifyIntersectionText, getIntersectionByName, verifyTextContainsIntersections, getFeatureById)
 import Json.Encode as JE
 import Tuple
 
@@ -110,7 +110,7 @@ importFeature =
     describe "If I change the state of the text field showing the exported model I instruct the system to load the new representation."
         [ test "when the import text is changed to a valid string, the intersections are reflected in the feature table" <|
             \() ->
-                (importAndFindFeatureTable "[{\"smallerKey\":\"import\",\"largerKey\":\"showFeatures\",\"value\":\"previously saved content\"}]" initialModel)
+                (importAndFindFeatureTable exampleImportJson initialModel)
                     |> Result.map
                         (expectIntersections
                             [ ( "Import", "Shows Features", "previously saved content" )
@@ -128,6 +128,20 @@ importFeature =
                             ]
                         )
                     |> resultToExpectation
+        , typeIntoIntersectionTest "i can get the intersections to the same state by exporting and importing" initialModel Result.Ok <|
+            \rowId colId text model ->
+                let
+                    rowLabel =
+                        (getFeatureById model rowId) |> Result.map .displayName
+
+                    colLabel =
+                        (getFeatureById model colId) |> Result.map .displayName
+                in
+                    showImportExportPanel model
+                        |> Result.map render
+                        |> Result.andThen getImportExportContent
+                        |> Result.andThen (\c -> importAndFindFeatureTable c initialModel)
+                        |> Result.andThen (\ft -> Result.map (\e -> e ft) (Result.map2 (\row col ft2 -> expectIntersections [ ( row, col, text ) ] ft2) rowLabel colLabel))
         ]
 
 
@@ -182,25 +196,39 @@ addFeature =
                     importExportContent
                         |> Result.map (\c -> Expect.true "expected import-export content to contain the new intersection" (String.contains "Everything is Awesome" c))
                         |> resultToExpectation
-        , Test.skip <|
-            test "newly added feature are reflected in the exported model if no intersection is edited" <|
-                \() ->
-                    let
-                        importExportContent =
-                            Result.Ok initialModel
-                                |> Result.andThen (addFeatureAndUpdateModel "Awesome Feature 1" "Awesome Desctiption 1")
-                                |> Result.andThen showImportExportPanel
-                                |> Result.map render
-                                |> Result.andThen getImportExportContent
-                    in
-                        importExportContent
-                            |> Result.map
-                                (\c ->
-                                    Expect.true
-                                        "expected import-export model to contain the new feature's name and description"
-                                        ((String.contains "Awesome Feature 1" c) && (String.contains "Awesome Description 1" c))
-                                )
-                            |> resultToExpectation
+        , test "newly added feature are reflected in the exported model if no intersection is edited" <|
+            \() ->
+                let
+                    importExportContent =
+                        Result.Ok initialModel
+                            |> Result.andThen (addFeatureAndUpdateModel "Awesome Feature 1" "Awesome Description 1")
+                            |> Result.andThen showImportExportPanel
+                            |> Result.map render
+                            |> Result.andThen getImportExportContent
+                in
+                    importExportContent
+                        |> Result.map
+                            (\c ->
+                                Expect.true
+                                    "expected import-export model to contain the new feature's name and description"
+                                    ((String.contains "Awesome Feature 1" c) && (String.contains "Awesome Description 1" c))
+                            )
+                        |> resultToExpectation
+        , test "i can get the project into the same state by exporting and importing" <|
+            \() ->
+                addFeatureAndUpdateModel "New Awesome Feature" "New Awesome Description" initialModel
+                    |> Result.andThen showImportExportPanel
+                    |> Result.map render
+                    |> Result.andThen getImportExportContent
+                    |> Result.andThen ((flip importAndUpdateModel) initialModel)
+                    |> Result.map render
+                    |> Result.map findFeatureTableElmHtml
+                    |> Result.andThen (Result.fromMaybe "feature table not found after import")
+                    |> Result.map rowHeaderNames
+                    |> Result.andThen (Result.fromMaybe "row headers not found after import")
+                    |> Result.map (List.member "New Awesome Feature")
+                    |> Result.map (Expect.true "the added feature name should be in the row headers")
+                    |> resultToExpectation
         ]
 
 
@@ -306,22 +334,21 @@ hideFeature =
                             |> resultToExpectation
                 in
                     Expect.all [ \() -> headerNamesEx, \() -> intersectionEx, \() -> editIntersectionEx ] ()
-        , Test.skip <|
-            test "import/export preserves the shown/hidden status of a feature" <|
-                \() ->
-                    let
-                        hiddenExportContent =
-                            hideFeatureFromView "Edit Intersection" initialModel
-                                |> Result.andThen showImportExportPanel
-                                |> Result.map render
-                                |> Result.andThen getImportExportContent
-                    in
-                        importAndUpdateModel "{}" initialModel
-                            |> resultAndThen2 importAndFindFeatureTable hiddenExportContent
-                            |> Result.map columnHeaderNames
-                            |> Result.andThen (Result.fromMaybe "column headers not found")
-                            |> Result.map (\h -> Expect.false "expected headers not to include the hidden feature" (List.member "Edit Intersection" h))
-                            |> resultToExpectation
+        , test "import/export preserves the shown/hidden status of a feature" <|
+            \() ->
+                let
+                    hiddenExportContent =
+                        hideFeatureFromView "Edit Intersection" initialModel
+                            |> Result.andThen showImportExportPanel
+                            |> Result.map render
+                            |> Result.andThen getImportExportContent
+                in
+                    importAndUpdateModel "{}" initialModel
+                        |> resultAndThen2 importAndFindFeatureTable hiddenExportContent
+                        |> Result.map columnHeaderNames
+                        |> Result.andThen (Result.fromMaybe "column headers not found")
+                        |> Result.map (\h -> Expect.false "expected headers not to include the hidden feature" (List.member "Edit Intersection" h))
+                        |> resultToExpectation
         ]
 
 
@@ -341,9 +368,11 @@ dummyIntersections =
 
 initialModel : Main.Model
 initialModel =
-    { features = Main.dummyFeatures
-    , featureVisibility = Main.allFeaturesVisible Main.dummyFeatures
-    , intersections = dummyIntersections
+    { persistent =
+        { features = Main.dummyFeatures
+        , featureVisibility = Main.allFeaturesVisible Main.dummyFeatures
+        , intersections = dummyIntersections
+        }
     , parseError = Nothing
     , showSerialized = False
     , newFeaturePanelState =
@@ -416,3 +445,58 @@ verifyShownModelContainsTypedIntersection expected maybeContent =
 render : Main.Model -> ElmHtml Main.Msg
 render model =
     Main.view model |> HtmlTestExtra.fromHtml
+
+
+exampleImportJson : String
+exampleImportJson =
+    """
+    {
+        "intersections": [
+            {
+                "smallerKey": "import",
+                "largerKey": "showFeatures",
+                "value": "previously saved content"
+            }
+        ],
+        "features": [
+            {
+                "featureId": "showFeatures",
+                "displayName": "Shows Features",
+                "description": ""
+            },
+            {
+                "featureId": "edit",
+                "displayName": "Edit Intersection",
+                "description": ""
+            },
+            {
+                "featureId": "export",
+                "displayName": "Export",
+                "description": ""
+            },
+            {
+                "featureId": "import",
+                "displayName": "Import",
+                "description": ""
+            }
+        ],
+        "featureVisibilities": [
+            {
+                "featureId": "edit",
+                "visible": true
+            },
+            {
+                "featureId": "export",
+                "visible": true
+            },
+            {
+                "featureId": "import",
+                "visible": true
+            },
+            {
+                "featureId": "showFeatures",
+                "visible": true
+            }
+        ]
+    }
+    """

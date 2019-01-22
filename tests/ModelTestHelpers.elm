@@ -11,7 +11,7 @@ verifyIntersectionText : String -> String -> String -> Main.Model -> Expectation
 verifyIntersectionText rowFeatureId colFeatureId expectedText model =
     let
         valueAtCell =
-            Dict.get (orderTuple ( rowFeatureId, colFeatureId )) model.intersections
+            Dict.get (orderTuple ( rowFeatureId, colFeatureId )) model.persistent.intersections
 
         location =
             "at intersection " ++ rowFeatureId ++ " / " ++ colFeatureId
@@ -37,19 +37,26 @@ getFeature : Main.Model -> Int -> Result String Main.Feature
 getFeature model randomIndex =
     let
         featureIndex =
-            randomIndex % (List.length model.features)
+            randomIndex % (List.length model.persistent.features)
 
         maybeFeature =
-            listElemAtIndex featureIndex model.features
+            listElemAtIndex featureIndex model.persistent.features
     in
         Result.fromMaybe ("no feature at index " ++ (toString featureIndex)) maybeFeature
 
 
 getFeatureByName : Main.Model -> String -> Result String Main.Feature
 getFeatureByName model displayName =
-    List.filter (\f -> f.displayName == displayName) model.features
+    List.filter (\f -> f.displayName == displayName) model.persistent.features
         |> ensureSingleton
         |> Result.fromMaybe ("feature with header \"" ++ displayName ++ "\" was not in the model")
+
+
+getFeatureById : Main.Model -> String -> Result String Main.Feature
+getFeatureById model featureId =
+    List.filter (\f -> f.featureId == featureId) model.persistent.features
+        |> ensureSingleton
+        |> Result.fromMaybe ("feature with header \"" ++ featureId ++ "\" was not in the model")
 
 
 getIntersectionByName : String -> String -> Main.Model -> Result String String
@@ -63,7 +70,7 @@ getIntersectionByName displayName1 displayName2 model =
     in
         Result.map2 (,) f1 f2
             |> Result.map orderTuple
-            |> Result.map ((flip Dict.get) model.intersections)
+            |> Result.map ((flip Dict.get) model.persistent.intersections)
             |> Result.map (Maybe.withDefault "")
 
 
@@ -71,7 +78,7 @@ verifyTextContainsIntersections : String -> Main.Model -> Expectation
 verifyTextContainsIntersections text model =
     let
         intersections =
-            Dict.toList model.intersections
+            Dict.toList model.persistent.intersections
 
         intersectionPresent ( ( smallerKey, largerKey ) as k, intersection ) =
             if String.contains intersection text then
