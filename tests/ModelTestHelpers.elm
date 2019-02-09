@@ -1,13 +1,13 @@
 module ModelTestHelpers exposing (..)
 
-import Main
+import Model
 import Expect exposing (Expectation)
 import Dict
 import Helpers exposing (orderTuple, ensureSingleton, listElemAtIndex, resultListFoldl)
 import TestHelpers exposing (expectNotError)
 
 
-verifyIntersectionText : String -> String -> String -> Main.Model -> Expectation
+verifyIntersectionText : String -> String -> String -> Model.Model -> Expectation
 verifyIntersectionText rowFeatureId colFeatureId expectedText model =
     let
         valueAtCell =
@@ -33,7 +33,7 @@ verifyIntersectionText rowFeatureId colFeatureId expectedText model =
                     Expect.pass
 
 
-getFeature : Main.Model -> Int -> Result String Main.Feature
+getFeature : Model.Model -> Int -> Result String Model.Feature
 getFeature model randomIndex =
     let
         featureIndex =
@@ -45,21 +45,21 @@ getFeature model randomIndex =
         Result.fromMaybe ("no feature at index " ++ (toString featureIndex)) maybeFeature
 
 
-getFeatureByName : Main.Model -> String -> Result String Main.Feature
+getFeatureByName : Model.Model -> String -> Result String Model.Feature
 getFeatureByName model displayName =
     List.filter (\f -> f.displayName == displayName) model.persistent.features
         |> ensureSingleton
         |> Result.fromMaybe ("feature with header \"" ++ displayName ++ "\" was not in the model")
 
 
-getFeatureById : Main.Model -> String -> Result String Main.Feature
+getFeatureById : Model.Model -> String -> Result String Model.Feature
 getFeatureById model featureId =
     List.filter (\f -> f.featureId == featureId) model.persistent.features
         |> ensureSingleton
         |> Result.fromMaybe ("feature with header \"" ++ featureId ++ "\" was not in the model")
 
 
-getIntersectionByName : String -> String -> Main.Model -> Result String String
+getIntersectionByName : String -> String -> Model.Model -> Result String String
 getIntersectionByName displayName1 displayName2 model =
     let
         f1 =
@@ -74,7 +74,7 @@ getIntersectionByName displayName1 displayName2 model =
             |> Result.map (Maybe.withDefault "")
 
 
-verifyTextContainsIntersections : String -> Main.Model -> Expectation
+verifyTextContainsIntersections : String -> Model.Model -> Expectation
 verifyTextContainsIntersections text model =
     let
         intersections =

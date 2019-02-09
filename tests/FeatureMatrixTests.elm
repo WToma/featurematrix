@@ -3,6 +3,8 @@ module FeatureMatrixTests exposing (..)
 import Test exposing (Test, describe, todo, test, fuzz3)
 import Expect exposing (Expectation)
 import Main
+import Model
+import Msg
 import Dict
 import Test.Html.Event as Event
 import HtmlTestExtra
@@ -352,7 +354,7 @@ hideFeature =
         ]
 
 
-initialView : ElmHtml Main.Msg
+initialView : ElmHtml Msg.Msg
 initialView =
     render initialModel
 
@@ -366,7 +368,7 @@ dummyIntersections =
         ]
 
 
-initialModel : Main.Model
+initialModel : Model.Model
 initialModel =
     { persistent =
         { features = Main.dummyFeatures
@@ -383,7 +385,7 @@ initialModel =
     }
 
 
-testInitialTable : (ElmHtml Main.Msg -> Result String Expectation) -> Expectation
+testInitialTable : (ElmHtml Msg.Msg -> Result String Expectation) -> Expectation
 testInitialTable t =
     testTable initialModel t
 
@@ -393,7 +395,7 @@ dummyFeatureDisplayNames =
     List.map (\df -> df.displayName) Main.dummyFeatures
 
 
-expectHeaderNamesToBe : (ElmHtml Main.Msg -> Maybe (List String)) -> String -> List String -> Expectation
+expectHeaderNamesToBe : (ElmHtml Msg.Msg -> Maybe (List String)) -> String -> List String -> Expectation
 expectHeaderNamesToBe getHeadersFn nameInErr expectedHeaderNames =
     testInitialTable <|
         \table ->
@@ -403,12 +405,12 @@ expectHeaderNamesToBe getHeadersFn nameInErr expectedHeaderNames =
                 |> Result.map (Expect.equalSets (Set.fromList expectedHeaderNames))
 
 
-clickButton : ElmHtml Main.Msg -> Result String Main.Msg
+clickButton : ElmHtml Msg.Msg -> Result String Msg.Msg
 clickButton button =
     HtmlTestExtra.simulate Event.click button
 
 
-importAndFindFeatureTable : String -> Main.Model -> Result String (ElmHtml Main.Msg)
+importAndFindFeatureTable : String -> Model.Model -> Result String (ElmHtml Msg.Msg)
 importAndFindFeatureTable typedText initialModel =
     importAndUpdateModel typedText initialModel
         |> Result.map render
@@ -416,7 +418,7 @@ importAndFindFeatureTable typedText initialModel =
         |> Result.andThen (Result.fromMaybe "feature table not found in view after import")
 
 
-addFeatureAndFindFeatureTable : String -> String -> Main.Model -> Result String ( ElmHtml Main.Msg, Main.Model )
+addFeatureAndFindFeatureTable : String -> String -> Model.Model -> Result String ( ElmHtml Msg.Msg, Model.Model )
 addFeatureAndFindFeatureTable newFeatureName newFeatureDescription initialModel =
     let
         newModel =
@@ -442,7 +444,7 @@ verifyShownModelContainsTypedIntersection expected maybeContent =
         Result.map verify maybeContent
 
 
-render : Main.Model -> ElmHtml Main.Msg
+render : Model.Model -> ElmHtml Msg.Msg
 render model =
     Main.view model |> HtmlTestExtra.fromHtml
 

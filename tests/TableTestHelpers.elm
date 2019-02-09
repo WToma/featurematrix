@@ -3,6 +3,8 @@ module TableTestHelpers exposing (..)
 import Test
 import Fuzz
 import Main
+import Model
+import Msg
 import Expect exposing (Expectation)
 import Helpers exposing (resultAndThen2, orderTuple)
 import ElmHtml.InternalTypes exposing (ElmHtml)
@@ -14,7 +16,7 @@ import HtmlTestExtra exposing (getStringAttribute)
 import Dict
 
 
-typeIntoIntersectionTest : String -> Main.Model -> (Main.Model -> Result String Main.Model) -> (String -> String -> String -> Main.Model -> Result String Expectation) -> Test.Test
+typeIntoIntersectionTest : String -> Model.Model -> (Model.Model -> Result String Model.Model) -> (String -> String -> String -> Model.Model -> Result String Expectation) -> Test.Test
 typeIntoIntersectionTest title modelBeforePreamble preamble verification =
     Test.fuzz3 Fuzz.int Fuzz.int Fuzz.string title <|
         \rowRandom colRandom intersectionText ->
@@ -22,13 +24,13 @@ typeIntoIntersectionTest title modelBeforePreamble preamble verification =
                 initialModel =
                     preamble modelBeforePreamble
 
-                testRowAndCol : Main.Model -> Main.Feature -> Main.Feature -> ElmHtml Main.Msg -> Result String Expectation
+                testRowAndCol : Model.Model -> Model.Feature -> Model.Feature -> ElmHtml Msg.Msg -> Result String Expectation
                 testRowAndCol initialModel rowFeature colFeature table =
                     typeIntoIntersection rowFeature.displayName colFeature.displayName intersectionText table
                         |> Result.map ((flip Main.update) initialModel)
                         |> Result.andThen (verification rowFeature.featureId colFeature.featureId intersectionText)
 
-                doTest : Main.Model -> ElmHtml Main.Msg -> Result String Expectation
+                doTest : Model.Model -> ElmHtml Msg.Msg -> Result String Expectation
                 doTest initialModel table =
                     resultAndThen2
                         (\r c -> testRowAndCol initialModel r c table)
@@ -40,7 +42,7 @@ typeIntoIntersectionTest title modelBeforePreamble preamble verification =
                     |> resultToExpectation
 
 
-testTable : Main.Model -> (ElmHtml Main.Msg -> Result String Expectation) -> Expectation
+testTable : Model.Model -> (ElmHtml Msg.Msg -> Result String Expectation) -> Expectation
 testTable initialModel t =
     let
         table =
@@ -55,7 +57,7 @@ testTable initialModel t =
         resultToExpectation testResult
 
 
-typeIntoIntersection : String -> String -> String -> ElmHtml Main.Msg -> Result String Main.Msg
+typeIntoIntersection : String -> String -> String -> ElmHtml Msg.Msg -> Result String Msg.Msg
 typeIntoIntersection rowLabel colLabel textToInsert html =
     let
         event =
@@ -69,7 +71,7 @@ typeIntoIntersection rowLabel colLabel textToInsert html =
             |> Result.andThen (HtmlTestExtra.simulate event)
 
 
-verifyAllIntersectionsInTable : Main.Model -> ElmHtml msg -> Expectation
+verifyAllIntersectionsInTable : Model.Model -> ElmHtml msg -> Expectation
 verifyAllIntersectionsInTable model table =
     let
         featureIds =
@@ -87,7 +89,7 @@ verifyAllIntersectionsInTable model table =
         Expect.all allExpectations table
 
 
-verifyIntersectionTextInTable : String -> String -> Main.Model -> ElmHtml msg -> Result String Expectation
+verifyIntersectionTextInTable : String -> String -> Model.Model -> ElmHtml msg -> Result String Expectation
 verifyIntersectionTextInTable rowFeatureId colFeatureId model table =
     let
         featureIdToFeatureMap =
@@ -137,7 +139,7 @@ findIntersectionCellText rowHeaderName colHeaderName table =
         |> Result.map (Maybe.withDefault "")
 
 
-hideFeatureFromView : String -> Main.Model -> Result String Main.Model
+hideFeatureFromView : String -> Model.Model -> Result String Model.Model
 hideFeatureFromView featureName model =
     model
         |> render
@@ -147,7 +149,7 @@ hideFeatureFromView featureName model =
         |> Result.map ((flip Main.update) model)
 
 
-pressHideButtonOnRow : String -> ElmHtml Main.Msg -> Result String Main.Msg
+pressHideButtonOnRow : String -> ElmHtml Msg.Msg -> Result String Msg.Msg
 pressHideButtonOnRow featureName featureTable =
     findRowHeaderByName featureName featureTable
         |> Result.fromMaybe ("row header not found for " ++ featureName)
@@ -156,7 +158,7 @@ pressHideButtonOnRow featureName featureTable =
         |> Result.andThen (HtmlTestExtra.simulate Event.click)
 
 
-pressHideButtonOnColumn : String -> ElmHtml Main.Msg -> Result String Main.Msg
+pressHideButtonOnColumn : String -> ElmHtml Msg.Msg -> Result String Msg.Msg
 pressHideButtonOnColumn featureName featureTable =
     findColumnHeaderByName featureName featureTable
         |> Result.fromMaybe ("column header not found for " ++ featureName)
@@ -165,6 +167,6 @@ pressHideButtonOnColumn featureName featureTable =
         |> Result.andThen (HtmlTestExtra.simulate Event.click)
 
 
-render : Main.Model -> ElmHtml Main.Msg
+render : Model.Model -> ElmHtml Msg.Msg
 render model =
     Main.view model |> HtmlTestExtra.fromHtml

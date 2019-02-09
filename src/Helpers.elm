@@ -4,6 +4,7 @@ module Helpers exposing (..)
 -}
 
 import Dict
+import Char
 
 
 {-| Return Just x if the input is [x], Nothing otherwise. Useful for checking that a given list has exactly one element
@@ -204,6 +205,8 @@ resultListFoldl f x0 =
 
 {-| Counts the number of occurrences for each element in the list.
 
+    import Dict
+
     counts ["a", "b", "a"] --> Dict.fromList [("a", 2), ("b", 1)]
     counts [] --> Dict.fromList []
 
@@ -219,3 +222,47 @@ counts xs =
                 Dict.insert x (currentValue + 1) d
     in
         List.foldl inc Dict.empty xs
+
+
+{-| Performs a transformation on the head of a list, leaving the tail unchanged
+
+    mapFirst ((+) 1) [1, 2] --> [2, 2]
+    mapFirst ((+) 1) [] --> []
+
+-}
+mapFirst : (a -> a) -> List a -> List a
+mapFirst f xs =
+    case xs of
+        [] ->
+            []
+
+        head :: tail ->
+            (f head) :: tail
+
+
+{-| Converts a list of words to camelCase
+
+    phraseToCamelCase "" --> ""
+    phraseToCamelCase "hello" --> "hello"
+    phraseToCamelCase "hello world" --> "helloWorld"
+
+-}
+phraseToCamelCase : String -> String
+phraseToCamelCase phrase =
+    let
+        words =
+            String.words phrase
+
+        firstCharToLower =
+            \s -> String.fromList (mapFirst Char.toLocaleLower (String.toList s))
+
+        firstCharToUpper =
+            \s -> String.fromList (mapFirst Char.toLocaleUpper (String.toList s))
+
+        allFirstUpper =
+            List.map firstCharToUpper words
+
+        camelCaseWords =
+            mapFirst firstCharToLower allFirstUpper
+    in
+        List.foldr (++) "" camelCaseWords

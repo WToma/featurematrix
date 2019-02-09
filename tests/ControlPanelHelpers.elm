@@ -5,10 +5,12 @@ import ElmHtml.Query exposing (queryByTagName, queryByClassName, queryById)
 import HtmlTestExtra exposing (extractText, getStringAttribute)
 import Helpers exposing (..)
 import Main
+import Model
+import Msg
 import Test.Html.Event as Event
 
 
-showImportExportPanel : Main.Model -> Result String Main.Model
+showImportExportPanel : Model.Model -> Result String Model.Model
 showImportExportPanel initialModel =
     render initialModel
         |> findShowHideModelButton
@@ -26,14 +28,14 @@ getImportExportContent html =
         |> Result.map (Maybe.withDefault "")
 
 
-updateImportExportContent : String -> ElmHtml Main.Msg -> Result String Main.Msg
+updateImportExportContent : String -> ElmHtml Msg.Msg -> Result String Msg.Msg
 updateImportExportContent newContent html =
     findExportImportTextField html
         |> Result.fromMaybe "import/export textarea not found"
         |> Result.andThen (HtmlTestExtra.simulate (Event.input newContent))
 
 
-importAndUpdateModel : String -> Main.Model -> Result String Main.Model
+importAndUpdateModel : String -> Model.Model -> Result String Model.Model
 importAndUpdateModel typedText initialModel =
     showImportExportPanel initialModel
         |> Result.map render
@@ -41,10 +43,10 @@ importAndUpdateModel typedText initialModel =
         |> Result.map ((flip Main.update) initialModel)
 
 
-addFeatureAndUpdateModel : String -> String -> Main.Model -> Result String Main.Model
+addFeatureAndUpdateModel : String -> String -> Model.Model -> Result String Model.Model
 addFeatureAndUpdateModel newFeatureName newFeatureDescription initialModel =
     let
-        chainedUpdateReducer : (ElmHtml Main.Msg -> Result String Main.Msg) -> Result String Main.Model -> Result String Main.Model
+        chainedUpdateReducer : (ElmHtml Msg.Msg -> Result String Msg.Msg) -> Result String Model.Model -> Result String Model.Model
         chainedUpdateReducer msgGenerator model =
             let
                 rendered =
@@ -63,28 +65,28 @@ addFeatureAndUpdateModel newFeatureName newFeatureDescription initialModel =
             ]
 
 
-updateNewFeatureName : String -> ElmHtml Main.Msg -> Result String Main.Msg
+updateNewFeatureName : String -> ElmHtml Msg.Msg -> Result String Msg.Msg
 updateNewFeatureName newFeatureName html =
     findNewFeatureName html
         |> Result.fromMaybe "new feature name textfield not found"
         |> Result.andThen (HtmlTestExtra.simulate (Event.input newFeatureName))
 
 
-updateNewFeatureDescription : String -> ElmHtml Main.Msg -> Result String Main.Msg
+updateNewFeatureDescription : String -> ElmHtml Msg.Msg -> Result String Msg.Msg
 updateNewFeatureDescription newFeatureDescription html =
     findNewFeatureDescription html
         |> Result.fromMaybe "new feature description textfield not found"
         |> Result.andThen (HtmlTestExtra.simulate (Event.input newFeatureDescription))
 
 
-pressNewFeatureButton : ElmHtml Main.Msg -> Result String Main.Msg
+pressNewFeatureButton : ElmHtml Msg.Msg -> Result String Msg.Msg
 pressNewFeatureButton html =
     findAddNewFeatureButton html
         |> Result.fromMaybe "new feature button not found"
         |> Result.andThen (HtmlTestExtra.simulate Event.click)
 
 
-showFeature : String -> Main.Model -> Result String Main.Model
+showFeature : String -> Model.Model -> Result String Model.Model
 showFeature featureName model =
     model
         |> render
@@ -92,7 +94,7 @@ showFeature featureName model =
         |> Result.map ((flip Main.update) model)
 
 
-pressShowFeatureButton : String -> ElmHtml Main.Msg -> Result String Main.Msg
+pressShowFeatureButton : String -> ElmHtml Msg.Msg -> Result String Msg.Msg
 pressShowFeatureButton featureName html =
     findHiddenFeatureByName featureName html
         |> Result.fromMaybe ("hidden feature " ++ featureName ++ " not found")
@@ -145,6 +147,6 @@ findShowFeatureButton hiddenFeature =
     queryByTagName "button" hiddenFeature |> ensureSingleton
 
 
-render : Main.Model -> ElmHtml Main.Msg
+render : Model.Model -> ElmHtml Msg.Msg
 render model =
     Main.view model |> HtmlTestExtra.fromHtml
