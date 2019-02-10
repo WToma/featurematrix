@@ -4,10 +4,10 @@ import Html exposing (Html, button, div, text, textarea, h2)
 import Html.Events exposing (onClick, onInput)
 import Html.Attributes exposing (class, type_, id, value, readonly, placeholder)
 import Dict exposing (Dict)
-import Model exposing (Model, PersistentModel, Feature, encodePersistentModel, decodePersistentModel, isFeatureVisible)
+import Model exposing (Model, PersistentModel, Feature, encodePersistentModel, decodePersistentModel, isFeatureVisible, addNewFeature)
 import Msg exposing (Msg(..))
 import TableView exposing (renderFeatureTable)
-import Helpers exposing (phraseToCamelCase)
+import NewFeaturePanel
 
 
 main : Program Never Model Msg
@@ -21,11 +21,7 @@ main =
                 }
             , parseError = Nothing
             , showSerialized = False
-            , newFeaturePanelState =
-                { shortName = ""
-                , description = ""
-                , errorAdding = Nothing
-                }
+            , newFeaturePanelState = NewFeaturePanel.initialModel
             }
         , view = view
         , update = update
@@ -103,47 +99,16 @@ update msg model =
                 Err failures ->
                     { model | parseError = Just (String.join "; " failures) }
 
-        NFPShortNameUpdated str ->
-            let
-                currentNfpState =
-                    model.newFeaturePanelState
-
-                updatedNfpState =
-                    { currentNfpState | shortName = str, errorAdding = Nothing }
-            in
-                { model | newFeaturePanelState = updatedNfpState }
-
-        NFPDescriptionUpdated str ->
-            let
-                currentNfpState =
-                    model.newFeaturePanelState
-
-                updatedNfpState =
-                    { currentNfpState | description = str, errorAdding = Nothing }
-            in
-                { model | newFeaturePanelState = updatedNfpState }
-
-        AddNewFeature shortName description ->
-            case addNewFeature model.persistent.features model.persistent.featureVisibility shortName description of
-                Result.Ok ( newFeatures, newVisibility ) ->
-                    let
-                        oldPersistent =
-                            model.persistent
-
-                        newPersistent =
-                            { oldPersistent | features = newFeatures, featureVisibility = newVisibility }
-                    in
-                        { model | persistent = newPersistent }
+        AddNewFeature request ->
+            case addNewFeature model.persistent request.shortName request.description of
+                Result.Ok newPersistentModel ->
+                    { model
+                        | persistent = newPersistentModel
+                        , newFeaturePanelState = NewFeaturePanel.initialModel
+                    }
 
                 Result.Err reason ->
-                    let
-                        currentNfpState =
-                            model.newFeaturePanelState
-
-                        updatedNfpState =
-                            { currentNfpState | errorAdding = Just reason }
-                    in
-                        { model | newFeaturePanelState = updatedNfpState }
+                    { model | newFeaturePanelState = NewFeaturePanel.setError reason model.newFeaturePanelState }
 
         HideFeature featureId ->
             let
@@ -171,61 +136,15 @@ update msg model =
             in
                 { model | persistent = newPersistent }
 
+        NFPMsg nfpMsg ->
+            let
+                ( nfpState, maybeMessage ) =
+                    NewFeaturePanel.update AddNewFeature nfpMsg model.newFeaturePanelState
 
-getUniqueFeatureId : List String -> String -> Int -> String
-getUniqueFeatureId takens base try =
-    let
-        suffix =
-            if try == 0 then
-                ""
-            else
-                toString try
-
-        candidate =
-            base ++ suffix
-
-        taken =
-            List.any (\x -> x == candidate) takens
-    in
-        if taken then
-            getUniqueFeatureId takens base (try + 1)
-        else
-            candidate
-
-
-addNewFeature : List Feature -> Dict String Bool -> String -> String -> Result String ( List Feature, Dict String Bool )
-addNewFeature currentFeatures featureVisibility newShortName newDescription =
-    let
-        isShortNameEmpty =
-            String.isEmpty newShortName
-
-        isDescriptionEmpty =
-            String.isEmpty newDescription
-
-        isShortNameTaken =
-            List.any (\f -> f.displayName == newShortName) currentFeatures
-    in
-        if (not isShortNameTaken) && (not isDescriptionEmpty) && (not isShortNameEmpty) then
-            Result.Ok
-                (let
-                    featureId =
-                        getUniqueFeatureId (List.map (\f -> f.featureId) currentFeatures) (phraseToCamelCase newShortName) 0
-
-                    newFeature =
-                        { featureId = featureId, displayName = newShortName, description = newDescription }
-                 in
-                    ( List.append currentFeatures [ newFeature ], Dict.insert featureId True featureVisibility )
-                )
-        else
-            Result.Err
-                (if isShortNameTaken then
-                    "a feature with this name already exists"
-                 else if isShortNameEmpty then
-                    "the feature name cannot be empty"
-                 else
-                    -- isDescriptonEmpty
-                    "the description cannot be empty"
-                )
+                newModel =
+                    { model | newFeaturePanelState = nfpState }
+            in
+                Maybe.map (\msg -> update msg newModel) maybeMessage |> Maybe.withDefault newModel
 
 
 view : Model -> Html Msg
@@ -266,7 +185,7 @@ renderModelInputOutput model =
                     "Show"
                 )
             ]
-        , renderFeatureAdd model
+        , NewFeaturePanel.view NFPMsg model.newFeaturePanelState
         , renderHiddenFeatures model.persistent
         ]
 
@@ -289,14 +208,3 @@ renderHiddenFeatures model =
              else
                 []
             )
-
-
-renderFeatureAdd : Model -> Html Msg
-renderFeatureAdd model =
-    div [ class "featureAdd" ]
-        [ h2 [] [ text "Add New Feature" ]
-        , Html.input [ type_ "text", placeholder "Short Name of the New Feature", class "newFeatureName", value model.newFeaturePanelState.shortName, onInput NFPShortNameUpdated ] []
-        , textarea [ class "newFeatureDescription", placeholder "A description of the new feature.", value model.newFeaturePanelState.description, onInput NFPDescriptionUpdated ] []
-        , button [ onClick (AddNewFeature model.newFeaturePanelState.shortName model.newFeaturePanelState.description) ] [ text "Add Feature" ]
-        , text (Maybe.withDefault "" (Maybe.map (\reason -> "Error Adding New Feature: " ++ reason) model.newFeaturePanelState.errorAdding))
-        ]

@@ -1,10 +1,11 @@
-module Model exposing (Model, PersistentModel, Feature, encodePersistentModel, decodePersistentModel, isFeatureVisible)
+module Model exposing (Model, PersistentModel, Feature, encodePersistentModel, decodePersistentModel, isFeatureVisible, addNewFeature)
 
+import NewFeaturePanel
 import Dict exposing (Dict)
 import Set
 import Json.Encode as JE
 import Json.Decode as JD
-import Helpers exposing (counts, flattenMaybeList)
+import Helpers exposing (counts, flattenMaybeList, phraseToCamelCase)
 
 
 type alias PersistentModel =
@@ -18,11 +19,7 @@ type alias Model =
     { persistent : PersistentModel
     , parseError : Maybe String
     , showSerialized : Bool
-    , newFeaturePanelState :
-        { shortName : String
-        , description : String
-        , errorAdding : Maybe String
-        }
+    , newFeaturePanelState : NewFeaturePanel.Model
     }
 
 
@@ -40,6 +37,44 @@ type alias Feature =
 isFeatureVisible : PersistentModel -> Feature -> Bool
 isFeatureVisible model feature =
     Dict.get feature.featureId model.featureVisibility |> Maybe.withDefault False
+
+
+addNewFeature : PersistentModel -> String -> String -> Result String PersistentModel
+addNewFeature model newShortName newDescription =
+    let
+        isShortNameEmpty =
+            String.isEmpty newShortName
+
+        isDescriptionEmpty =
+            String.isEmpty newDescription
+
+        isShortNameTaken =
+            List.any (\f -> f.displayName == newShortName) model.features
+    in
+        if (not isShortNameTaken) && (not isDescriptionEmpty) && (not isShortNameEmpty) then
+            Result.Ok
+                (let
+                    featureId =
+                        getUniqueFeatureId (List.map (\f -> f.featureId) model.features) (phraseToCamelCase newShortName) 0
+
+                    newFeature =
+                        { featureId = featureId, displayName = newShortName, description = newDescription }
+                 in
+                    { model
+                        | features = List.append model.features [ newFeature ]
+                        , featureVisibility = Dict.insert featureId True model.featureVisibility
+                    }
+                )
+        else
+            Result.Err
+                (if isShortNameTaken then
+                    "a feature with this name already exists"
+                 else if isShortNameEmpty then
+                    "the feature name cannot be empty"
+                 else
+                    -- isDescriptonEmpty
+                    "the description cannot be empty"
+                )
 
 
 
@@ -61,6 +96,10 @@ decodePersistentModel str =
     JD.decodeString parsePersistentModel str
         |> Result.mapError List.singleton
         |> Result.andThen validatePersistentModel
+
+
+
+-- unexported
 
 
 encodeFeatures : List Feature -> JE.Value
@@ -201,3 +240,24 @@ parseIntersectionEntry =
             JD.field "value" JD.string
     in
         JD.map3 mkEntry smallerKeyDec largerKeyDec valueDec
+
+
+getUniqueFeatureId : List String -> String -> Int -> String
+getUniqueFeatureId takens base try =
+    let
+        suffix =
+            if try == 0 then
+                ""
+            else
+                toString try
+
+        candidate =
+            base ++ suffix
+
+        taken =
+            List.any (\x -> x == candidate) takens
+    in
+        if taken then
+            getUniqueFeatureId takens base (try + 1)
+        else
+            candidate
