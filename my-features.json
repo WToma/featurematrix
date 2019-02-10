@@ -17,6 +17,11 @@
         },
         {
             "smallerKey": "addFeature",
+            "largerKey": "focusMode",
+            "value": "- If a new feature is added while in focus mode, the new feature can be reached while cycling through the features.\n- There is a button in the new feature add panel to add a feature and enter focus mode in one click."
+        },
+        {
+            "smallerKey": "addFeature",
             "largerKey": "hideFeature",
             "value": "Newly added features can be hidden."
         },
@@ -34,6 +39,11 @@
             "smallerKey": "edit",
             "largerKey": "export",
             "value": "- If I edit an intersection, it's represented in the exportable model.\n- If I edit an intersection while the export textbox is shown, the textbox updates immediately."
+        },
+        {
+            "smallerKey": "edit",
+            "largerKey": "focusMode",
+            "value": "When editing an intersection in focus mode, we edit the intersection between the selected (fixed) feature and the currently showing feature."
         },
         {
             "smallerKey": "edit",
@@ -57,6 +67,11 @@
         },
         {
             "smallerKey": "export",
+            "largerKey": "focusMode",
+            "value": "Export works the same way as in table mode (the new state is immediately shown if the text representation if visible)."
+        },
+        {
+            "smallerKey": "export",
             "largerKey": "hideFeature",
             "value": "Hidden features are exported as well."
         },
@@ -64,6 +79,26 @@
             "smallerKey": "export",
             "largerKey": "import",
             "value": "Exporting and importing the model are symmetrical. I.e. I can get the project model to exactly the same state where I was if I export the project, reload the page, then import the model."
+        },
+        {
+            "smallerKey": "focusMode",
+            "largerKey": "focusMode",
+            "value": "In Focus Mode there is no feature table, instead we can go through the other features one at a time.\n- There are buttons to move to the previous / next feature (cycling).\n- There is a button to return to table view"
+        },
+        {
+            "smallerKey": "focusMode",
+            "largerKey": "hideFeature",
+            "value": "- Features that have been hidden in table view still show up in focus mode.\n- The hidden / shown status of a feature in table mode is preserved after returning to table mode."
+        },
+        {
+            "smallerKey": "focusMode",
+            "largerKey": "import",
+            "value": "- When importing, if the import changes the currently focused intersection, that is shown immediately.\n- When importing, if the focused feature no longer exists, the view returns to table view.\n- When importing, if the intersection currently shown in the focus mode no longer exists, we go to the next feature that exists.\n- When importing, if the import text is invalid, an error message is shown (the same as in table view)"
+        },
+        {
+            "smallerKey": "focusMode",
+            "largerKey": "showFeatures",
+            "value": "- Focus mode can be entered using a button on the feature header in the feature table."
         },
         {
             "smallerKey": "hideFeature",
@@ -126,6 +161,11 @@
             "featureId": "hideFeature",
             "displayName": "Hide Feature",
             "description": "Remove a Feature from the Feature Table, and Provide Button to Show Again"
+        },
+        {
+            "featureId": "focusMode",
+            "displayName": "Focus Mode",
+            "description": "Focus Mode lets the user focus on the interactions between a single selected feature and all the other features in the project.\nThis is especially useful when adding new features."
         }
     ],
     "featureVisibilities": [
@@ -139,6 +179,10 @@
         },
         {
             "featureId": "export",
+            "visible": true
+        },
+        {
+            "featureId": "focusMode",
             "visible": true
         },
         {
