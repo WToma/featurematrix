@@ -45,7 +45,7 @@ renderFeatureTableGeneric intersectionRenderer model =
 
 renderFeatureHeader : Feature -> Html Msg
 renderFeatureHeader f =
-    div [] [ text f.displayName, button [ onClick (HideFeature f.featureId) ] [ text "(hide)" ] ]
+    div [] [ text f.displayName, button [ onClick (HideFeature f.featureId), class "hideBtn" ] [ text "(hide)" ] ]
 
 
 renderIntersectionEditBox : Dict ( String, String ) String -> ( Feature, Feature ) -> Html Msg

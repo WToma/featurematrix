@@ -1,4 +1,4 @@
-module TableViewHelpers exposing (columnHeaderNames, rowHeaderNames, findFeatureTableElmHtml, findIntersectionCell, findTextFieldInCell, findColumnHeaderByName, findRowHeaderByName, extractHideButtonFromHeaderCell)
+module TableViewHelpers exposing (columnHeaderNames, rowHeaderNames, findFeatureTableElmHtml, findIntersectionCell, findTextFieldInCell, findColumnHeaderByName, findRowHeaderByName, extractHideButtonFromHeaderCell, extractFocusButtonFromHeaderCell)
 
 import ElmHtml.InternalTypes exposing (ElmHtml)
 import ElmHtml.Query exposing (queryByTagName, queryByClassName)
@@ -101,7 +101,17 @@ extractHideButtonFromHeaderCell : ElmHtml msg -> Maybe (ElmHtml msg)
 extractHideButtonFromHeaderCell th =
     queryByTagName "div" th
         |> List.head
-        |> Maybe.map (queryByTagName "button")
+        |> Maybe.map (queryByClassName "hideBtn")
+        |> Maybe.map (List.concatMap (\elemWithClassName -> queryByTagName "button" elemWithClassName))
+        |> Maybe.andThen ensureSingleton
+
+
+extractFocusButtonFromHeaderCell : ElmHtml msg -> Maybe (ElmHtml msg)
+extractFocusButtonFromHeaderCell th =
+    queryByTagName "div" th
+        |> List.head
+        |> Maybe.map (queryByClassName "focusBtn")
+        |> Maybe.map (List.concatMap (\elemWithClassName -> queryByTagName "button" elemWithClassName))
         |> Maybe.andThen ensureSingleton
 
 

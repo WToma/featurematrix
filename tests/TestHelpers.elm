@@ -1,6 +1,9 @@
-module TestHelpers exposing (resultToExpectation, expectNotError)
+module TestHelpers exposing (resultToExpectation, expectNotError, dummyIntersections, initialModel)
 
 import Expect exposing (Expectation)
+import Dict
+import Model
+import Main
 
 
 resultToExpectation : Result String Expectation -> Expectation
@@ -21,3 +24,29 @@ expectNotError r =
 
         Result.Err msg ->
             Expect.fail msg
+
+
+dummyIntersections : Dict.Dict ( String, String ) String
+dummyIntersections =
+    Dict.fromList
+        [ ( ( "edit", "showFeatures" ), "edited features are displayed" )
+        , ( ( "edit", "export" ), "edited features are exported" )
+        , ( ( "addFeature", "import" ), "added features can be exported and imported" )
+        ]
+
+
+initialModel : Model.Model
+initialModel =
+    { persistent =
+        { features = Main.dummyFeatures
+        , featureVisibility = Main.allFeaturesVisible Main.dummyFeatures
+        , intersections = dummyIntersections
+        }
+    , parseError = Nothing
+    , showSerialized = False
+    , newFeaturePanelState =
+        { shortName = ""
+        , description = ""
+        , errorAdding = Nothing
+        }
+    }

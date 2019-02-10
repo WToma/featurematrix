@@ -1,12 +1,28 @@
 module FocusModeTests exposing (..)
 
 import Test exposing (Test, describe, todo, test)
+import FeatureMatrixTestFramework exposing (..)
+import TableViewHelpers exposing (findFeatureTableElmHtml, findColumnHeaderByName, extractFocusButtonFromHeaderCell)
+import HtmlTestExtra exposing (..)
+import ElmHtml.Query exposing (queryByClassName)
+import ElmHtml.InternalTypes exposing (ElmHtml)
+import Test.Html.Event as Event
+import Helpers exposing (ensureSingleton)
+import Expect
+import TestHelpers exposing (initialModel)
 
 
 entering : Test
 entering =
     describe "To enter focus mode"
-        [ todo "there is a button on the feature headers in table view"
+        [ test "there is a button on the feature headers in table view" <|
+            \() ->
+                (initialState initialModel)
+                    |> select featureTable
+                    |> select (columnHeader "Import")
+                    |> operate enterFocusMode
+                    |> select focusModePanel
+                    |> verify (focusedFeature "Import")
         , todo "there is a button on the add feature panel"
         ]
 
@@ -33,3 +49,74 @@ importing =
         , todo "if the other feature currently shown no longer exists, we go to the next feature that exists"
         , todo "if the import text is invalid, an error message is shown (the same as in table view)"
         ]
+
+
+
+-- selectors
+
+
+featureTable : Selector
+featureTable =
+    { selectionName =
+        { name = "Feature Table"
+        , selectionSteps = [ "<table class='featureTable'>" ]
+        }
+    , select = TableViewHelpers.findFeatureTableElmHtml
+    }
+
+
+columnHeader : String -> Selector
+columnHeader featureDisplayName =
+    { selectionName =
+        { name = "Column Header called " ++ featureDisplayName
+        , selectionSteps = [ "<div>", "where text=" ++ featureDisplayName ]
+        }
+    , select = TableViewHelpers.findColumnHeaderByName featureDisplayName
+    }
+
+
+focusModePanel : Selector
+focusModePanel =
+    { selectionName =
+        { name = "Focus Mode"
+        , selectionSteps = [ "class=focusModeWrapper", "singleton" ]
+        }
+    , select = queryByClassName "focusModeWrapper" >> ensureSingleton
+    }
+
+
+
+-- operations
+
+
+enterFocusMode : Operation
+enterFocusMode =
+    { description = "press the button with the focusBtn class"
+    , operate = TableViewHelpers.extractFocusButtonFromHeaderCell >> Maybe.andThen clickButton
+    }
+
+
+
+-- verifications
+
+
+focusedFeature : String -> Verification
+focusedFeature expectedFocusedFeatureName =
+    { description = "the content of the element with the focusedFeature class should be  " ++ expectedFocusedFeatureName
+    , verify =
+        \focusModeWrapper ->
+            focusModeWrapper
+                |> (queryByClassName "focusedFeature" >> ensureSingleton)
+                |> Maybe.andThen (extractText >> ensureSingleton)
+                |> Maybe.map (Expect.equal expectedFocusedFeatureName)
+    }
+
+
+
+-- other helpers
+
+
+clickButton : ElmHtml msg -> Maybe msg
+clickButton button =
+    HtmlTestExtra.simulate Event.click button
+        |> Result.toMaybe
