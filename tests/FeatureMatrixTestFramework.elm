@@ -11,7 +11,6 @@ module FeatureMatrixTestFramework
         )
 
 import Main
-import Model
 import Msg
 import ElmHtml.InternalTypes exposing (ElmHtml)
 import HtmlTestExtra
@@ -51,7 +50,7 @@ type alias Verification =
 
 
 type alias FMApplication =
-    { model : Model.Model
+    { model : Main.Model
     , rendered : ElmHtml Msg.Msg
     , selected : ElmHtml Msg.Msg
     , selectionPath : List SelectionPathElement -- newest first
@@ -73,7 +72,7 @@ type alias TestState =
 -- exported functions
 
 
-initialState : Model.Model -> TestState
+initialState : Main.Model -> TestState
 initialState model =
     let
         rendered =

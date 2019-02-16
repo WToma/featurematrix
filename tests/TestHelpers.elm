@@ -2,7 +2,6 @@ module TestHelpers exposing (resultToExpectation, expectNotError, dummyIntersect
 
 import Expect exposing (Expectation)
 import Dict
-import Model
 import Main
 
 
@@ -35,7 +34,7 @@ dummyIntersections =
         ]
 
 
-initialModel : Model.Model
+initialModel : Main.Model
 initialModel =
     { persistent =
         { features = Main.dummyFeatures
@@ -49,4 +48,5 @@ initialModel =
         , description = ""
         , errorAdding = Nothing
         }
+    , display = Main.Table
     }

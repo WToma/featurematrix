@@ -5,12 +5,11 @@ import ElmHtml.Query exposing (queryByTagName, queryByClassName, queryById)
 import HtmlTestExtra exposing (extractText, getStringAttribute)
 import Helpers exposing (..)
 import Main
-import Model
 import Msg
 import Test.Html.Event as Event
 
 
-showImportExportPanel : Model.Model -> Result String Model.Model
+showImportExportPanel : Main.Model -> Result String Main.Model
 showImportExportPanel initialModel =
     render initialModel
         |> findShowHideModelButton
@@ -35,7 +34,7 @@ updateImportExportContent newContent html =
         |> Result.andThen (HtmlTestExtra.simulate (Event.input newContent))
 
 
-importAndUpdateModel : String -> Model.Model -> Result String Model.Model
+importAndUpdateModel : String -> Main.Model -> Result String Main.Model
 importAndUpdateModel typedText initialModel =
     showImportExportPanel initialModel
         |> Result.map render
@@ -43,10 +42,10 @@ importAndUpdateModel typedText initialModel =
         |> Result.map ((flip Main.update) initialModel)
 
 
-addFeatureAndUpdateModel : String -> String -> Model.Model -> Result String Model.Model
+addFeatureAndUpdateModel : String -> String -> Main.Model -> Result String Main.Model
 addFeatureAndUpdateModel newFeatureName newFeatureDescription initialModel =
     let
-        chainedUpdateReducer : (ElmHtml Msg.Msg -> Result String Msg.Msg) -> Result String Model.Model -> Result String Model.Model
+        chainedUpdateReducer : (ElmHtml Msg.Msg -> Result String Msg.Msg) -> Result String Main.Model -> Result String Main.Model
         chainedUpdateReducer msgGenerator model =
             let
                 rendered =
@@ -86,7 +85,7 @@ pressNewFeatureButton html =
         |> Result.andThen (HtmlTestExtra.simulate Event.click)
 
 
-showFeature : String -> Model.Model -> Result String Model.Model
+showFeature : String -> Main.Model -> Result String Main.Model
 showFeature featureName model =
     model
         |> render
@@ -147,6 +146,6 @@ findShowFeatureButton hiddenFeature =
     queryByTagName "button" hiddenFeature |> ensureSingleton
 
 
-render : Model.Model -> ElmHtml Msg.Msg
+render : Main.Model -> ElmHtml Msg.Msg
 render model =
     Main.view model |> HtmlTestExtra.fromHtml

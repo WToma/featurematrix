@@ -1,13 +1,24 @@
-module Main exposing (update, view, dummyFeatures, allFeaturesVisible)
+module Main exposing (Model, update, view, dummyFeatures, allFeaturesVisible, Display(..))
 
 import Html exposing (Html, button, div, text, textarea, h2)
 import Html.Events exposing (onClick, onInput)
 import Html.Attributes exposing (class, type_, id, value, readonly, placeholder)
 import Dict exposing (Dict)
-import Model exposing (Model, PersistentModel, Feature, encodePersistentModel, decodePersistentModel, isFeatureVisible, addNewFeature)
+import PersistentModel exposing (PersistentModel, Feature, encodePersistentModel, decodePersistentModel, isFeatureVisible, addNewFeature)
 import Msg exposing (Msg(..))
 import TableView exposing (renderFeatureTable)
 import NewFeaturePanel
+
+
+type Display = Table | DisplayError String
+
+type alias Model =
+    { persistent : PersistentModel
+    , parseError : Maybe String
+    , showSerialized : Bool
+    , newFeaturePanelState : NewFeaturePanel.Model
+    , display: Display
+    }
 
 
 main : Program Never Model Msg
@@ -22,6 +33,7 @@ main =
             , parseError = Nothing
             , showSerialized = False
             , newFeaturePanelState = NewFeaturePanel.initialModel
+            , display = Table
             }
         , view = view
         , update = update
@@ -151,7 +163,11 @@ view : Model -> Html Msg
 view model =
     appContainer
         (renderModelInputOutput model)
-        (renderFeatureTable model)
+        ( case model.display of
+            DisplayError error ->
+                div [] [ text error ]
+            Table -> renderFeatureTable model.persistent model.parseError
+        )
 
 
 appContainer : Html Msg -> Html Msg -> Html Msg

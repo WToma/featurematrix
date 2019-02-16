@@ -3,7 +3,6 @@ module FeatureMatrixTests exposing (..)
 import Test exposing (Test, describe, todo, test, fuzz3)
 import Expect exposing (Expectation)
 import Main
-import Model
 import Msg
 import Dict
 import Test.Html.Event as Event
@@ -15,7 +14,7 @@ import TestHelpers exposing (resultToExpectation, expectNotError)
 import TableViewHelpers exposing (columnHeaderNames, rowHeaderNames, findFeatureTableElmHtml, findIntersectionCell, findTextFieldInCell, findColumnHeaderByName, findRowHeaderByName, extractHideButtonFromHeaderCell)
 import TableTestHelpers exposing (verifyAllIntersectionsInTable, typeIntoIntersectionTest, expectIntersections, typeIntoIntersection, hideFeatureFromView, pressHideButtonOnRow, pressHideButtonOnColumn, findIntersectionCellText, testTable)
 import ControlPanelHelpers exposing (showImportExportPanel, getImportExportContent, addFeatureAndUpdateModel, showFeature, importAndUpdateModel)
-import ModelTestHelpers exposing (verifyIntersectionText, getIntersectionByName, verifyTextContainsIntersections, getFeatureById)
+import PersistentModelTestHelpers exposing (verifyIntersectionText, getIntersectionByName, verifyTextContainsIntersections, getFeatureById)
 import Json.Encode as JE
 import Tuple
 
@@ -61,7 +60,7 @@ editIntersection : Test
 editIntersection =
     describe "In Table View I can type in an intersection of two features."
         [ typeIntoIntersectionTest "typing in an intersection is reflected in the model" initialModel Result.Ok <|
-            \rowId colId text model -> verifyIntersectionText rowId colId text model |> Result.Ok
+            \rowId colId text model -> verifyIntersectionText rowId colId text model.persistent |> Result.Ok
 
         -- todo "If I type in a field other than the main diagonal, it'll appear in the transposition of the cell I typed into as well."
         -- this is implicitly tested by the fact that we have already tested that the display is simmetrical
@@ -81,7 +80,7 @@ export =
                         Result.andThen getImportExportContent updatedView
 
                     verification actual =
-                        verifyTextContainsIntersections actual initialModel
+                        verifyTextContainsIntersections actual initialModel.persistent
                 in
                     content
                         |> Result.map verification
@@ -134,12 +133,15 @@ importFeature =
             \rowId colId text model ->
                 let
                     rowLabel =
-                        (getFeatureById model rowId) |> Result.map .displayName
+                        (getFeatureById model.persistent rowId) |> Result.map .displayName
 
                     colLabel =
-                        (getFeatureById model colId) |> Result.map .displayName
+                        (getFeatureById model.persistent colId) |> Result.map .displayName
+
+                    model2 : Main.Model
+                    model2 = model
                 in
-                    showImportExportPanel model
+                    showImportExportPanel model2
                         |> Result.map render
                         |> Result.andThen getImportExportContent
                         |> Result.andThen (\c -> importAndFindFeatureTable c initialModel)
@@ -173,7 +175,7 @@ addFeature =
                     table
                         |> Result.andThen (typeIntoIntersection "New Awesome Feature" "Import" "New Awesome Intersection")
                         |> Result.map2 (flip Main.update) model
-                        |> Result.andThen (getIntersectionByName "New Awesome Feature" "Import")
+                        |> Result.andThen (\m -> getIntersectionByName "New Awesome Feature" "Import" m.persistent)
                         |> Result.map (Expect.equal "New Awesome Intersection")
                         |> resultToExpectation
         , test "intersections between newly added features are reflected in the exported model" <|
@@ -332,7 +334,7 @@ hideFeature =
                         hiddenAndShownTable
                             |> Result.andThen (typeIntoIntersection "Edit Intersection" "Shows Features" "updated the hidden and shown intersection")
                             |> Result.map2 (flip Main.update) hiddenAndShownModel
-                            |> Result.map (verifyIntersectionText "edit" "showFeatures" "updated the hidden and shown intersection")
+                            |> Result.map (\m -> verifyIntersectionText "edit" "showFeatures" "updated the hidden and shown intersection" m.persistent)
                             |> resultToExpectation
                 in
                     Expect.all [ \() -> headerNamesEx, \() -> intersectionEx, \() -> editIntersectionEx ] ()
@@ -368,7 +370,7 @@ dummyIntersections =
         ]
 
 
-initialModel : Model.Model
+initialModel : Main.Model
 initialModel =
     { persistent =
         { features = Main.dummyFeatures
@@ -382,6 +384,7 @@ initialModel =
         , description = ""
         , errorAdding = Nothing
         }
+    , display = Main.Table
     }
 
 
@@ -410,7 +413,7 @@ clickButton button =
     HtmlTestExtra.simulate Event.click button
 
 
-importAndFindFeatureTable : String -> Model.Model -> Result String (ElmHtml Msg.Msg)
+importAndFindFeatureTable : String -> Main.Model -> Result String (ElmHtml Msg.Msg)
 importAndFindFeatureTable typedText initialModel =
     importAndUpdateModel typedText initialModel
         |> Result.map render
@@ -418,7 +421,7 @@ importAndFindFeatureTable typedText initialModel =
         |> Result.andThen (Result.fromMaybe "feature table not found in view after import")
 
 
-addFeatureAndFindFeatureTable : String -> String -> Model.Model -> Result String ( ElmHtml Msg.Msg, Model.Model )
+addFeatureAndFindFeatureTable : String -> String -> Main.Model -> Result String ( ElmHtml Msg.Msg, Main.Model )
 addFeatureAndFindFeatureTable newFeatureName newFeatureDescription initialModel =
     let
         newModel =
@@ -444,7 +447,7 @@ verifyShownModelContainsTypedIntersection expected maybeContent =
         Result.map verify maybeContent
 
 
-render : Model.Model -> ElmHtml Msg.Msg
+render : Main.Model -> ElmHtml Msg.Msg
 render model =
     Main.view model |> HtmlTestExtra.fromHtml
 

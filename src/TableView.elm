@@ -1,18 +1,18 @@
 module TableView exposing (renderFeatureTable)
 
-import Model exposing (Model, PersistentModel, Feature, isFeatureVisible)
-import Msg exposing (Msg(HideFeature, IntersectionUpdated))
+import PersistentModel exposing (PersistentModel, Feature, isFeatureVisible)
+import Msg exposing (Msg(HideFeature, IntersectionUpdated, FocusFeature))
 import Html exposing (Html, button, div, text, textarea, h2)
 import Html.Events exposing (onClick, onInput)
-import Html.Attributes exposing (class, type_, id, value, readonly, placeholder)
+import Html.Attributes exposing (class, type_, id, value, readonly)
 import Dict exposing (Dict)
 
 
-renderFeatureTable : Model -> Html Msg
-renderFeatureTable model =
+renderFeatureTable : PersistentModel -> Maybe String -> Html Msg
+renderFeatureTable model parseError =
     div [ class "featureTableContainer" ]
-        [ div [] [ text (Maybe.withDefault "" model.parseError) ]
-        , renderFeatureTableGeneric (renderIntersectionEditBox model.persistent.intersections) model.persistent
+        [ div [] [ text (Maybe.withDefault "" parseError) ]
+        , renderFeatureTableGeneric (renderIntersectionEditBox model.intersections) model
         ]
 
 
@@ -45,7 +45,10 @@ renderFeatureTableGeneric intersectionRenderer model =
 
 renderFeatureHeader : Feature -> Html Msg
 renderFeatureHeader f =
-    div [] [ text f.displayName, button [ onClick (HideFeature f.featureId), class "hideBtn" ] [ text "(hide)" ] ]
+    div []
+        [ text f.displayName
+        , button [ onClick (HideFeature f.featureId), class "hideBtn" ] [ text "(hide)" ]
+        ]
 
 
 renderIntersectionEditBox : Dict ( String, String ) String -> ( Feature, Feature ) -> Html Msg
