@@ -12,3 +12,4 @@ type Msg
     | HideFeature String
     | ShowFeature String
     | NFPMsg NewFeaturePanel.Msg
+    | FocusFeature String

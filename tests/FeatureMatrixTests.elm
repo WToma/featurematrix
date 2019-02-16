@@ -139,7 +139,8 @@ importFeature =
                         (getFeatureById model.persistent colId) |> Result.map .displayName
 
                     model2 : Main.Model
-                    model2 = model
+                    model2 =
+                        model
                 in
                     showImportExportPanel model2
                         |> Result.map render

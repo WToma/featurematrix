@@ -4,7 +4,7 @@ import Test exposing (Test, describe, todo, test)
 import FeatureMatrixTestFramework exposing (..)
 import TableViewHelpers exposing (findFeatureTableElmHtml, findColumnHeaderByName, extractFocusButtonFromHeaderCell)
 import HtmlTestExtra exposing (..)
-import ElmHtml.Query exposing (queryByClassName)
+import ElmHtml.Query exposing (queryByClassName, queryByTagName)
 import ElmHtml.InternalTypes exposing (ElmHtml)
 import Test.Html.Event as Event
 import Helpers exposing (ensureSingleton)
@@ -102,11 +102,12 @@ enterFocusMode =
 
 focusedFeature : String -> Verification
 focusedFeature expectedFocusedFeatureName =
-    { description = "the content of the element with the focusedFeature class should be  " ++ expectedFocusedFeatureName
+    { description = "the content of the element with the focusedFeature class should be " ++ expectedFocusedFeatureName
     , verify =
         \focusModeWrapper ->
             focusModeWrapper
                 |> (queryByClassName "focusedFeature" >> ensureSingleton)
+                |> Maybe.andThen (queryByTagName "h2" >> ensureSingleton)
                 |> Maybe.andThen (extractText >> ensureSingleton)
                 |> Maybe.map (Expect.equal expectedFocusedFeatureName)
     }

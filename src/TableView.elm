@@ -48,6 +48,7 @@ renderFeatureHeader f =
     div []
         [ text f.displayName
         , button [ onClick (HideFeature f.featureId), class "hideBtn" ] [ text "(hide)" ]
+        , button [ onClick (FocusFeature f.featureId), class "focusBtn" ] [ text "(focus)" ]
         ]
 
 

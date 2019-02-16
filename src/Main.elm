@@ -8,16 +8,21 @@ import PersistentModel exposing (PersistentModel, Feature, encodePersistentModel
 import Msg exposing (Msg(..))
 import TableView exposing (renderFeatureTable)
 import NewFeaturePanel
+import FocusMode
 
 
-type Display = Table | DisplayError String
+type Display
+    = Table
+    | Focus FocusMode.Model
+    | DisplayError String
+
 
 type alias Model =
     { persistent : PersistentModel
     , parseError : Maybe String
     , showSerialized : Bool
     , newFeaturePanelState : NewFeaturePanel.Model
-    , display: Display
+    , display : Display
     }
 
 
@@ -158,15 +163,33 @@ update msg model =
             in
                 Maybe.map (\msg -> update msg newModel) maybeMessage |> Maybe.withDefault newModel
 
+        FocusFeature focusFeatureId ->
+            let
+                focusModel =
+                    FocusMode.init model.persistent focusFeatureId
+
+                newDisplay =
+                    focusModel
+                        |> Maybe.map Focus
+                        -- TODO give useful error message or get rid of this condition
+                        |> Maybe.withDefault (DisplayError "focus mode cannot be displayed")
+            in
+                { model | display = newDisplay }
+
 
 view : Model -> Html Msg
 view model =
     appContainer
         (renderModelInputOutput model)
-        ( case model.display of
+        (case model.display of
             DisplayError error ->
                 div [] [ text error ]
-            Table -> renderFeatureTable model.persistent model.parseError
+
+            Table ->
+                renderFeatureTable model.persistent model.parseError
+
+            Focus focusModel ->
+                FocusMode.view focusModel
         )
 
 
