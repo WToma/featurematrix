@@ -2,18 +2,31 @@ module TableView exposing (renderFeatureTable)
 
 import PersistentModel exposing (PersistentModel, Feature, isFeatureVisible)
 import Msg exposing (Msg(HideFeature, IntersectionUpdated, FocusFeature))
-import Html exposing (Html, button, div, text, textarea, h2)
+import Html exposing (Html, button, div, text, textarea, h5)
 import Html.Events exposing (onClick, onInput)
-import Html.Attributes exposing (class, type_, id, value, readonly)
+import Html.Attributes exposing (class, type_, id, value, readonly, attribute)
 import Dict exposing (Dict)
+import Helpers exposing (flattenMaybeList)
 
 
 renderFeatureTable : PersistentModel -> Maybe String -> Html Msg
 renderFeatureTable model parseError =
-    div [ class "featureTableContainer" ]
-        [ div [] [ text (Maybe.withDefault "" parseError) ]
-        , renderFeatureTableGeneric (renderIntersectionEditBox model.intersections) model
-        ]
+    let
+        maybeErrorAlert =
+            Maybe.map renderParseErrorAlert parseError
+
+        content =
+            [ maybeErrorAlert
+            , Just (renderFeatureTableGeneric (renderIntersectionEditBox model.intersections) model)
+            ]
+                |> flattenMaybeList
+    in
+        div [ class "featureTableContainer" ] content
+
+
+renderParseErrorAlert : String -> Html msg
+renderParseErrorAlert parseError =
+    div [ class "alert alert-danger" ] [ text parseError ]
 
 
 renderFeatureTableGeneric : (( Feature, Feature ) -> Html Msg) -> PersistentModel -> Html Msg
@@ -27,7 +40,7 @@ renderFeatureTableGeneric intersectionRenderer model =
     in
         div []
             (if hasFeaturesToRender then
-                [ Html.table [ class "featureTable" ]
+                [ Html.table [ class "featureTable table table-bordered" ]
                     (-- header
                      [ Html.tr [] ([ Html.th [ class "featureTable" ] [] ] ++ List.map (\f -> Html.th [ class "featureTable" ] [ renderFeatureHeader f ]) featuresToRender) ]
                         ++ -- rows
@@ -45,10 +58,14 @@ renderFeatureTableGeneric intersectionRenderer model =
 
 renderFeatureHeader : Feature -> Html Msg
 renderFeatureHeader f =
-    div []
-        [ text f.displayName
-        , button [ onClick (HideFeature f.featureId), class "hideBtn" ] [ text "(hide)" ]
-        , button [ onClick (FocusFeature f.featureId), class "focusBtn" ] [ text "(focus)" ]
+    div [ class "card cardNoBorder" ]
+        [ div [ class "card-body" ]
+            [ h5 [ class "featureName card-title" ] [ text f.displayName ]
+            , div [ class "btn-group", attribute "role" "group", attribute "aria-label" ("Actions on the " ++ f.displayName ++ " feature") ]
+                [ button [ class "hideBtn btn btn-primary btn-sm", onClick (HideFeature f.featureId) ] [ text "Hide" ]
+                , button [ class "focusBtn btn btn-primary btn-sm", onClick (FocusFeature f.featureId) ] [ text "Focus" ]
+                ]
+            ]
         ]
 
 
@@ -73,4 +90,4 @@ renderIntersectionEditBox intersectionValues ( f1, f2 ) =
         intersectionValue =
             Maybe.withDefault "" (Dict.get ( smallerId, largerId ) intersectionValues)
     in
-        Html.textarea [ class "intersectionTextArea", id inputId, value intersectionValue, onInput (IntersectionUpdated smallerId largerId) ] []
+        Html.textarea [ class "intersectionTextArea form-control", id inputId, value intersectionValue, onInput (IntersectionUpdated smallerId largerId) ] []

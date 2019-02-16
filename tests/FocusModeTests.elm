@@ -107,7 +107,7 @@ focusedFeature expectedFocusedFeatureName =
         \focusModeWrapper ->
             focusModeWrapper
                 |> (queryByClassName "focusedFeature" >> ensureSingleton)
-                |> Maybe.andThen (queryByTagName "h2" >> ensureSingleton)
+                |> Maybe.andThen (queryByClassName "featureName" >> ensureSingleton)
                 |> Maybe.andThen (extractText >> ensureSingleton)
                 |> Maybe.map (Expect.equal expectedFocusedFeatureName)
     }

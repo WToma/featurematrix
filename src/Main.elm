@@ -1,6 +1,6 @@
 module Main exposing (Model, update, view, dummyFeatures, allFeaturesVisible, Display(..))
 
-import Html exposing (Html, button, div, text, textarea, h2)
+import Html exposing (Html, button, div, text, textarea, h5, ul, li, span)
 import Html.Events exposing (onClick, onInput)
 import Html.Attributes exposing (class, type_, id, value, readonly, placeholder)
 import Dict exposing (Dict)
@@ -9,6 +9,7 @@ import Msg exposing (Msg(..))
 import TableView exposing (renderFeatureTable)
 import NewFeaturePanel
 import FocusMode
+import Helpers exposing (flattenMaybeList)
 
 
 type Display
@@ -180,10 +181,10 @@ update msg model =
 view : Model -> Html Msg
 view model =
     appContainer
-        (renderModelInputOutput model)
+        (renderControlPanel model)
         (case model.display of
             DisplayError error ->
-                div [] [ text error ]
+                div [ class "alert alert-danger" ] [ text error ]
 
             Table ->
                 renderFeatureTable model.persistent model.parseError
@@ -195,41 +196,66 @@ view model =
 
 appContainer : Html Msg -> Html Msg -> Html Msg
 appContainer controlPanel mainPanel =
-    div [ class "appContainer " ]
-        [ div [ class "controlPanel" ] [ controlPanel ]
-        , div [ class "featurePanel" ] [ mainPanel ]
+    div [ class "row h-100" ]
+        [ div [ class "controlPanel col" ] [ controlPanel ]
+        , div [ class "featurePanel col-8" ] [ mainPanel ]
         ]
+
+
+renderControlPanel : Model -> Html Msg
+renderControlPanel model =
+    div [ class "controlPanelWrapper h-100 border-right" ] <|
+        flattenMaybeList
+            [ Just <| renderModelInputOutput model
+            , Just <| NewFeaturePanel.view NFPMsg model.newFeaturePanelState
+            , renderHiddenFeatures model.persistent
+            ]
 
 
 renderModelInputOutput : Model -> Html Msg
 renderModelInputOutput model =
-    div [ class "controlPanelWrapper" ]
-        [ if model.showSerialized then
-            textarea [ class "saveLoadBox", value (encodePersistentModel model.persistent), readonly False, onInput SerializedModelUpdated ] []
-          else
-            text ""
-        , button
-            [ onClick
-                (if model.showSerialized then
-                    HideModel
-                 else
-                    ShowModel
+    let
+        maybeTextArea =
+            if model.showSerialized then
+                Just
+                    (div [ class "input-group mb-3" ]
+                        [ textarea [ class "saveLoadBox form-control", value (encodePersistentModel model.persistent), readonly False, onInput SerializedModelUpdated ] [] ]
+                    )
+            else
+                Nothing
+
+        showHideButton =
+            Just
+                (div [ class "mb-3" ]
+                    [ button
+                        [ onClick
+                            (if model.showSerialized then
+                                HideModel
+                             else
+                                ShowModel
+                            )
+                        , id "hideShowSaveLoadBox"
+                        , class "btn btn-primary"
+                        ]
+                        [ text
+                            (if model.showSerialized then
+                                "Hide"
+                             else
+                                "Show"
+                            )
+                        ]
+                    ]
                 )
-            , id "hideShowSaveLoadBox"
+
+        cardBody =
+            flattenMaybeList [ maybeTextArea, showHideButton ]
+    in
+        div [ class "card" ]
+            [ div [ class "card-body" ] cardBody
             ]
-            [ text
-                (if model.showSerialized then
-                    "Hide"
-                 else
-                    "Show"
-                )
-            ]
-        , NewFeaturePanel.view NFPMsg model.newFeaturePanelState
-        , renderHiddenFeatures model.persistent
-        ]
 
 
-renderHiddenFeatures : PersistentModel -> Html Msg
+renderHiddenFeatures : PersistentModel -> Maybe (Html Msg)
 renderHiddenFeatures model =
     let
         hiddenFeatures =
@@ -239,11 +265,22 @@ renderHiddenFeatures model =
             not (List.isEmpty hiddenFeatures)
 
         renderShowFeature =
-            \f -> div [ class "hiddenFeatureItem" ] [ text f.displayName, button [ onClick (ShowFeature f.featureId) ] [ text "(show)" ] ]
+            \f ->
+                li [ class "hiddenFeatureItem list-group-item" ]
+                    [ div [ class "input-group" ]
+                        [ div [ class "input-group-prepend" ] [ span [ class "featureName input-group-text" ] [ text f.displayName ] ]
+                        , button [ class "btn btn-primary btn-sm", onClick (ShowFeature f.featureId) ] [ text "Show" ]
+                        ]
+                    ]
     in
-        div []
-            (if hiddenFeaturesExist then
-                [ h2 [] [ text "Features Hidden from Display" ] ] ++ (List.map renderShowFeature hiddenFeatures)
-             else
-                []
-            )
+        if hiddenFeaturesExist then
+            Just
+                (div [ class "card" ]
+                    [ div [ class "card-body" ]
+                        [ h5 [ class "card-title" ] [ text "Features Hidden from Display" ]
+                        , ul [ class "list-group list-group-flush" ] (List.map renderShowFeature hiddenFeatures)
+                        ]
+                    ]
+                )
+        else
+            Nothing

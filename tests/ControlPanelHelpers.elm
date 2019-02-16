@@ -137,7 +137,16 @@ findHiddenFeatures html =
 findHiddenFeatureByName : String -> ElmHtml msg -> Maybe (ElmHtml msg)
 findHiddenFeatureByName featureName html =
     findHiddenFeatures html
-        |> List.filter (\c -> extractText c == [ featureName ])
+        |> List.filter
+            (\c ->
+                let
+                    featureText =
+                        c
+                            |> (queryByClassName "featureName" >> ensureSingleton)
+                            |> Maybe.map extractText
+                in
+                    featureText == Just [ featureName ]
+            )
         |> ensureSingleton
 
 

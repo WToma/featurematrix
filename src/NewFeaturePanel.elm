@@ -1,8 +1,9 @@
 module NewFeaturePanel exposing (Model, NewFeatureRequest, Msg, initialModel, update, view, setError)
 
-import Html exposing (Html, button, div, text, textarea, h2)
+import Html exposing (Html, button, div, text, textarea, h5)
 import Html.Events exposing (onClick, onInput)
 import Html.Attributes exposing (class, type_, id, value, readonly, placeholder)
+import Helpers exposing (flattenMaybeList)
 
 
 type alias Model =
@@ -52,10 +53,28 @@ update addMessageGenerator msg model =
 
 view : (Msg -> msg) -> Model -> Html msg
 view msgWrapper model =
-    div [ class "featureAdd" ]
-        [ h2 [] [ text "Add New Feature" ]
-        , Html.input [ type_ "text", placeholder "Short Name of the New Feature", class "newFeatureName", value model.shortName, onInput (ShortNameUpdated >> msgWrapper) ] []
-        , textarea [ class "newFeatureDescription", placeholder "A description of the new feature.", value model.description, onInput (DescriptionUpdated >> msgWrapper) ] []
-        , button [ onClick (msgWrapper (AddFeature { shortName = model.shortName, description = model.description })) ] [ text "Add Feature" ]
-        , text (Maybe.withDefault "" (Maybe.map (\reason -> "Error Adding New Feature: " ++ reason) model.errorAdding))
-        ]
+    let
+        cardBodyFixedElems =
+            [ h5 [ class "card-title" ] [ text "Add New Feature" ]
+            , div [ class "input-group mb-3" ]
+                [ Html.input [ type_ "text", placeholder "Short Name of the New Feature", class "newFeatureName form-control", value model.shortName, onInput (ShortNameUpdated >> msgWrapper) ] [] ]
+            , div [ class "input-group mb-3" ]
+                [ textarea [ class "newFeatureDescription form-control", placeholder "A description of the new feature", value model.description, onInput (DescriptionUpdated >> msgWrapper) ] [] ]
+            , div [ class "mb-3" ]
+                [ button [ class "btn btn-primary", onClick (msgWrapper (AddFeature { shortName = model.shortName, description = model.description })) ] [ text "Add Feature" ] ]
+            ]
+
+        cardBody =
+            (List.map (\e -> Just e) cardBodyFixedElems)
+                ++ [ Maybe.map error model.errorAdding ]
+                |> flattenMaybeList
+    in
+        div [ class "featureAdd card" ]
+            [ div [ class "card-body" ] cardBody
+            ]
+
+
+error : String -> Html msg
+error reason =
+    div [ class "alert alert-danger" ]
+        [ text ("Error Adding New Feature: " ++ reason) ]

@@ -89,7 +89,7 @@ rowHeaders table =
 -}
 extractHeaderCellText : ElmHtml msg -> Maybe String
 extractHeaderCellText th =
-    queryByTagName "div" th
+    queryByClassName "featureName" th
         |> List.head
         |> Maybe.map HtmlTestExtra.extractText
         |> Maybe.andThen ensureSingleton
