@@ -11,6 +11,7 @@ module FeatureMatrixTestFramework
         , verify
         , snapshot
         , verifySnapshot
+        , defaultSelector
         )
 
 import Main
@@ -61,6 +62,7 @@ type FMApplication
         , selectionPath : List SelectionPathElement -- newest first
         , operationDescriptions : List String -- newest first
         , snapshots : Dict String FMApplication
+        , defaultSelector : Maybe Selector
         }
 
 
@@ -94,6 +96,7 @@ initialState model =
                 , selectionPath = []
                 , operationDescriptions = []
                 , snapshots = Dict.empty
+                , defaultSelector = Nothing
                 }
 
 
@@ -126,6 +129,11 @@ verifySnapshot snapshotName verification tstst =
         |> Result.andThen (verifySnapshotOnApplication snapshotName verification)
         |> Result.mapError formatFailure
         |> TestHelpers.resultToExpectation
+
+
+defaultSelector : Maybe Selector -> TestState -> TestState
+defaultSelector newDefaultSelector tstst =
+    Result.map (setDefaultSelectorOnApplication newDefaultSelector) tstst
 
 
 
@@ -172,7 +180,16 @@ operateOnApplication : Operation -> FMApplication -> TestState
 operateOnApplication operation ((FMApplication application) as fmApplication) =
     case operation.operate application.selected of
         Just msg ->
-            Ok <| advanceApplicationByMsg msg operation.description fmApplication
+            let
+                updatedApplication =
+                    advanceApplicationByMsg msg operation.description fmApplication
+            in
+                case application.defaultSelector of
+                    Nothing ->
+                        Ok updatedApplication
+
+                    Just defaultSelector ->
+                        selectFromApplication defaultSelector updatedApplication
 
         Nothing ->
             Err (OperationNotFound application.selectionPath operation.description)
@@ -201,6 +218,11 @@ verifySnapshotOnApplication snapshotName verification ((FMApplication applicatio
     Dict.get snapshotName application.snapshots
         |> Result.fromMaybe (SnapshotDoesNotExist snapshotName)
         |> Result.andThen (verifyOnApplication verification)
+
+
+setDefaultSelectorOnApplication : Maybe Selector -> FMApplication -> FMApplication
+setDefaultSelectorOnApplication newDefaultSelector (FMApplication application) =
+    FMApplication { application | defaultSelector = newDefaultSelector }
 
 
 formatFailure : Failure -> String

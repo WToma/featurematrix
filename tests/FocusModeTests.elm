@@ -10,7 +10,7 @@ import ElmHtml.InternalTypes exposing (ElmHtml)
 import Test.Html.Event as Event
 import Helpers exposing (ensureSingleton)
 import Expect
-import TestHelpers exposing (initialModel)
+import TestHelpers exposing (initialModel, initialFirstFeatureName, initialSecondFeatureName)
 
 
 entering : Test
@@ -44,49 +44,45 @@ focusMode =
                     |> focusOn "Import"
                     |> verify noFeatureTableShown
         , test "there are buttons to go to the previous / next feature, the other feature for the intersection is fixed" <|
-            let
-                headMust =
-                    List.head >> Maybe.map .displayName >> Maybe.withDefault "Bad Test Data"
-
-                firstFeatureName =
-                    initialModel.persistent.features |> headMust
-
-                secondFeatureName =
-                    initialModel.persistent.features |> List.drop 1 |> headMust
-            in
-                \() ->
-                    (initialState initialModel)
-                        |> focusOn "Import"
-                        |> select focusModePanel
-                        |> snapshot "before"
-                        |> operate pressNextFeatureButton
-                        |> select focusModePanel
-                        |> snapshot "after"
-                        |> Expect.all
-                            [ verifySnapshot "before" (crossFeature firstFeatureName)
-                            , verifySnapshot "after" (crossFeature secondFeatureName)
-                            , verifySnapshot "after" (focusedFeature "Import")
-                            ]
+            \() ->
+                (initialState initialModel)
+                    |> defaultSelector (Just focusModePanel)
+                    |> focusOn "Import"
+                    |> snapshot "before"
+                    |> operate pressNextFeatureButton
+                    |> snapshot "after"
+                    |> Expect.all
+                        [ verifySnapshot "before" (crossFeature initialFirstFeatureName)
+                        , verifySnapshot "after" (crossFeature initialSecondFeatureName)
+                        , verifySnapshot "after" (focusedFeature "Import")
+                        ]
         , test "one intersection is shown at a time" <|
             \() ->
                 (initialState initialModel)
                     |> select featureTable
-                    |> select (tableIntersection "Import" "Shows Features")
+                    |> select (tableIntersection "Import" initialFirstFeatureName)
                     |> operate (typeIntoTextarea "First Awesome Content")
                     |> select featureTable
-                    |> select (tableIntersection "Import" "Edit Intersection")
+                    |> select (tableIntersection "Import" initialSecondFeatureName)
                     |> operate (typeIntoTextarea "Second Awesome Content")
+                    |> defaultSelector (Just focusModePanel)
                     |> focusOn "Import"
-                    |> select focusModePanel
                     |> snapshot "first focus"
                     |> operate pressNextFeatureButton
-                    |> select focusModePanel
                     |> snapshot "second focus"
                     |> Expect.all
                         [ verifySnapshot "first focus" (focusIntersectionContent "First Awesome Content")
                         , verifySnapshot "second focus" (focusIntersectionContent "Second Awesome Content")
                         ]
-        , todo "that intersection can be edited"
+        , test "that intersection can be edited" <|
+            \() ->
+                (initialState initialModel)
+                    |> defaultSelector (Just focusModePanel)
+                    |> focusOn "Import"
+                    |> operate (typeIntoTextarea "Awesome content that was edited in focus mode")
+                    |> operate pressNextFeatureButton
+                    |> operate pressPreviousFeatureButton
+                    |> verify (focusIntersectionContent "Awesome content that was edited in focus mode")
         , todo "there is a button to return to table view"
         , todo "export works the same way"
         , todo "if a new feature is added, the new feature can be reached while cycling through the features"
@@ -189,6 +185,13 @@ pressNextFeatureButton : Operation
 pressNextFeatureButton =
     { description = "press the button with the nextFeature class"
     , operate = queryByClassName "nextFeature" >> ensureSingleton >> Maybe.andThen clickButton
+    }
+
+
+pressPreviousFeatureButton : Operation
+pressPreviousFeatureButton =
+    { description = "press the button with the previousFeature class"
+    , operate = queryByClassName "previousFeature" >> ensureSingleton >> Maybe.andThen clickButton
     }
 
 

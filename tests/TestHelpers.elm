@@ -1,8 +1,17 @@
-module TestHelpers exposing (resultToExpectation, expectNotError, dummyIntersections, initialModel)
+module TestHelpers
+    exposing
+        ( resultToExpectation
+        , expectNotError
+        , dummyIntersections
+        , initialModel
+        , initialFirstFeatureName
+        , initialSecondFeatureName
+        )
 
 import Expect exposing (Expectation)
 import Dict
 import Main
+import PersistentModel
 
 
 resultToExpectation : Result String Expectation -> Expectation
@@ -50,3 +59,18 @@ initialModel =
         }
     , display = Main.Table
     }
+
+
+headMust : List PersistentModel.Feature -> String
+headMust =
+    List.head >> Maybe.map .displayName >> Maybe.withDefault "Bad Test Data"
+
+
+initialFirstFeatureName : String
+initialFirstFeatureName =
+    initialModel.persistent.features |> headMust
+
+
+initialSecondFeatureName : String
+initialSecondFeatureName =
+    initialModel.persistent.features |> List.drop 1 |> headMust
