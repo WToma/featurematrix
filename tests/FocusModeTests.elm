@@ -2,7 +2,7 @@ module FocusModeTests exposing (..)
 
 import Test exposing (Test, describe, todo, test)
 import FeatureMatrixTestFramework exposing (..)
-import TableViewHelpers exposing (findFeatureTableElmHtml, findColumnHeaderByName, extractFocusButtonFromHeaderCell)
+import TableViewHelpers exposing (findFeatureTableElmHtml, findColumnHeaderByName, extractFocusButtonFromHeaderCell, findIntersectionCell)
 import ControlPanelHelpers
 import HtmlTestExtra exposing (..)
 import ElmHtml.Query exposing (queryByClassName, queryByTagName)
@@ -67,7 +67,25 @@ focusMode =
                             , verifySnapshot "after" (crossFeature secondFeatureName)
                             , verifySnapshot "after" (focusedFeature "Import")
                             ]
-        , todo "one intersection is shown at a time"
+        , test "one intersection is shown at a time" <|
+            \() ->
+                (initialState initialModel)
+                    |> select featureTable
+                    |> select (tableIntersection "Import" "Shows Features")
+                    |> operate (typeIntoTextarea "First Awesome Content")
+                    |> select featureTable
+                    |> select (tableIntersection "Import" "Edit Intersection")
+                    |> operate (typeIntoTextarea "Second Awesome Content")
+                    |> focusOn "Import"
+                    |> select focusModePanel
+                    |> snapshot "first focus"
+                    |> operate pressNextFeatureButton
+                    |> select focusModePanel
+                    |> snapshot "second focus"
+                    |> Expect.all
+                        [ verifySnapshot "first focus" (focusIntersectionContent "First Awesome Content")
+                        , verifySnapshot "second focus" (focusIntersectionContent "Second Awesome Content")
+                        ]
         , todo "that intersection can be edited"
         , todo "there is a button to return to table view"
         , todo "export works the same way"
@@ -120,6 +138,21 @@ focusModePanel =
     }
 
 
+tableIntersection : String -> String -> Selector
+tableIntersection rowFeatureDisplayName colFeatureDisplayName =
+    { selectionName =
+        { name = "The intersection of '" ++ rowFeatureDisplayName ++ "' and '" ++ colFeatureDisplayName ++ "'"
+        , selectionSteps =
+            [ "establish the row header index of '" ++ rowFeatureDisplayName ++ "' in the feature table"
+            , "select that row from the table"
+            , "establish the column header index of '" ++ colFeatureDisplayName ++ "' in the row"
+            , "select that cell from the row"
+            ]
+        }
+    , select = TableViewHelpers.findIntersectionCell rowFeatureDisplayName colFeatureDisplayName >> Result.toMaybe
+    }
+
+
 
 -- operations
 
@@ -156,6 +189,13 @@ pressNextFeatureButton : Operation
 pressNextFeatureButton =
     { description = "press the button with the nextFeature class"
     , operate = queryByClassName "nextFeature" >> ensureSingleton >> Maybe.andThen clickButton
+    }
+
+
+typeIntoTextarea : String -> Operation
+typeIntoTextarea content =
+    { description = "type '" ++ content ++ "' into the only textarea of the current selection"
+    , operate = queryByTagName "textarea" >> ensureSingleton >> Maybe.andThen (typeInto content)
     }
 
 
@@ -203,6 +243,18 @@ noFeatureTableShown =
     }
 
 
+focusIntersectionContent : String -> Verification
+focusIntersectionContent expectedContent =
+    { description = "the content of the element with the intersection class should be '" ++ expectedContent ++ "'"
+    , verify =
+        \focusModeWrapper ->
+            focusModeWrapper
+                |> (queryByClassName "intersection" >> ensureSingleton)
+                |> Maybe.andThen (extractText >> ensureSingleton)
+                |> Maybe.map (Expect.equal expectedContent)
+    }
+
+
 
 -- other helpers
 
@@ -210,6 +262,12 @@ noFeatureTableShown =
 clickButton : ElmHtml msg -> Maybe msg
 clickButton button =
     HtmlTestExtra.simulate Event.click button
+        |> Result.toMaybe
+
+
+typeInto : String -> ElmHtml msg -> Maybe msg
+typeInto content input =
+    HtmlTestExtra.simulate (Event.input content) input
         |> Result.toMaybe
 
 

@@ -208,25 +208,13 @@ formatFailure failure =
     case failure of
         SelectionNotFound reversePath ->
             let
-                path =
-                    List.reverse reversePath
-
-                pathElNames =
-                    List.map .name path
-
                 pathFailed =
-                    List.head pathElNames |> Maybe.withDefault ""
+                    List.head reversePath |> Maybe.map .name |> Maybe.withDefault ""
 
                 remainingPath =
-                    List.tail pathElNames |> Maybe.withDefault []
-
-                remainingPathDescription =
-                    if remainingPath == [] then
-                        "App.view"
-                    else
-                        String.join " -> " remainingPath
+                    List.tail reversePath |> Maybe.withDefault []
             in
-                "selection '" ++ pathFailed ++ "' was not found afer the following selections: " ++ remainingPathDescription
+                "selection '" ++ pathFailed ++ "' was not found afer the following selections: " ++ (describePath remainingPath)
 
         OperationNotFound reversePath opNotFound ->
             "operation '" ++ opNotFound ++ "' was not found at the following selection: " ++ (describePath reversePath)
