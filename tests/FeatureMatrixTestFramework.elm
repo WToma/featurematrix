@@ -4,6 +4,7 @@ module FeatureMatrixTestFramework
         , Selector
         , Operation
         , Verification
+        , TestState
         , initialState
         , select
         , operate

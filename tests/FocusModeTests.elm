@@ -38,7 +38,11 @@ entering =
 focusMode : Test
 focusMode =
     describe "In Focus Mode"
-        [ todo "there is no feature table"
+        [ test "there is no feature table" <|
+            \() ->
+                (initialState initialModel)
+                    |> focusOn "Import"
+                    |> verify noFeatureTableShown
         , todo "one intersection is shown at a time"
         , todo "that intersection can be edited"
         , todo "there are buttons to go to the previous / next feature, the other feature for the intersection is fixed"
@@ -125,6 +129,10 @@ pressNewFeatureFocusButton =
     }
 
 
+-- complex selection / operation shortcuts
+focusOn : String -> TestState -> TestState
+focusOn featureName = select featureTable >> select (columnHeader featureName) >> operate enterFocusMode
+
 
 -- verifications
 
@@ -142,7 +150,11 @@ focusedFeature expectedFocusedFeatureName =
     }
 
 
-
+noFeatureTableShown : Verification
+noFeatureTableShown =
+    { description = "no feature table is shown"
+    , verify = \root -> TableViewHelpers.findFeatureTableElmHtml root |> Expect.equal Nothing |> Just
+    }
 -- other helpers
 
 
