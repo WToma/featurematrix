@@ -207,7 +207,7 @@ renderControlPanel model =
     div [ class "controlPanelWrapper h-100 border-right" ] <|
         flattenMaybeList
             [ Just <| renderModelInputOutput model
-            , Just <| NewFeaturePanel.view NFPMsg model.newFeaturePanelState
+            , Just (NewFeaturePanel.view model.newFeaturePanelState |> Html.map NFPMsg)
             , renderHiddenFeatures model.persistent
             ]
 

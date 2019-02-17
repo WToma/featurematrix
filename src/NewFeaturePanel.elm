@@ -51,17 +51,17 @@ update addMessageGenerator msg model =
             ( model, Just (addMessageGenerator request) )
 
 
-view : (Msg -> msg) -> Model -> Html msg
-view msgWrapper model =
+view : Model -> Html Msg
+view model =
     let
         cardBodyFixedElems =
             [ h5 [ class "card-title" ] [ text "Add New Feature" ]
             , div [ class "input-group mb-3" ]
-                [ Html.input [ type_ "text", placeholder "Short Name of the New Feature", class "newFeatureName form-control", value model.shortName, onInput (ShortNameUpdated >> msgWrapper) ] [] ]
+                [ Html.input [ type_ "text", placeholder "Short Name of the New Feature", class "newFeatureName form-control", value model.shortName, onInput ShortNameUpdated ] [] ]
             , div [ class "input-group mb-3" ]
-                [ textarea [ class "newFeatureDescription form-control", placeholder "A description of the new feature", value model.description, onInput (DescriptionUpdated >> msgWrapper) ] [] ]
+                [ textarea [ class "newFeatureDescription form-control", placeholder "A description of the new feature", value model.description, onInput DescriptionUpdated ] [] ]
             , div [ class "mb-3" ]
-                [ button [ class "btn btn-primary", onClick (msgWrapper (AddFeature { shortName = model.shortName, description = model.description })) ] [ text "Add Feature" ] ]
+                [ button [ class "btn btn-primary", onClick (AddFeature { shortName = model.shortName, description = model.description }) ] [ text "Add Feature" ] ]
             ]
 
         cardBody =
