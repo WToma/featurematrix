@@ -266,3 +266,43 @@ phraseToCamelCase phrase =
             mapFirst firstCharToLower allFirstUpper
     in
         List.foldr (++) "" camelCaseWords
+
+
+{-| Returns the 2 surrounding elements around the first occurrence of a given element.
+
+    window1 ((==) "d") ["a", "b", "c", "d", "e"] --> (Just "c", Just "d", Just "e")
+    window1 ((==) "e") ["a", "b", "c", "d", "e"] --> (Just "d", Just "e", Nothing)
+    window1 ((==) "d") [] --> (Nothing, Nothing, Nothing)
+    window1 ((==) "d") ["notd"] --> (Nothing, Nothing, Nothing)
+    window1 ((==) "d") ["d"] --> (Nothing, Just "d", Nothing)
+    window1 ((==) "d") ["d", "e"] --> (Nothing, Just "d", Just "e")
+    window1 ((==) "d") ["c", "d"] --> (Just "c", Just "d", Nothing)
+
+-}
+window1 : (a -> Bool) -> List a -> ( Maybe a, Maybe a, Maybe a )
+window1 predicate xs =
+    case xs of
+        [] ->
+            ( Nothing, Nothing, Nothing )
+
+        x :: [] ->
+            if (predicate x) then
+                ( Nothing, Just x, Nothing )
+            else
+                ( Nothing, Nothing, Nothing )
+
+        x :: y :: [] ->
+            if (predicate x) then
+                ( Nothing, Just x, Just y )
+            else if (predicate y) then
+                ( Just x, Just y, Nothing )
+            else
+                ( Nothing, Nothing, Nothing )
+
+        x :: y :: z :: tail ->
+            if (predicate x) then
+                ( Nothing, Just x, Just y )
+            else if (predicate y) then
+                ( Just x, Just y, Just z )
+            else
+                window1 predicate (y :: z :: tail)

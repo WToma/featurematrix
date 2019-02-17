@@ -1,6 +1,7 @@
 module Msg exposing (Msg(..))
 
 import NewFeaturePanel
+import FocusMode
 
 
 type Msg
@@ -13,3 +14,4 @@ type Msg
     | ShowFeature String
     | NFPMsg NewFeaturePanel.Msg
     | FocusFeature String
+    | FocusModeMsg FocusMode.Msg

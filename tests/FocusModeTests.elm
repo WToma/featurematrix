@@ -43,9 +43,34 @@ focusMode =
                 (initialState initialModel)
                     |> focusOn "Import"
                     |> verify noFeatureTableShown
+        , test "there are buttons to go to the previous / next feature, the other feature for the intersection is fixed" <|
+            let
+                focused =
+                    (initialState initialModel)
+                        |> focusOn "Import"
+                        |> select focusModePanel
+
+                thenPressNext =
+                    (operate pressNextFeatureButton) >> (select focusModePanel)
+
+                headMust =
+                    List.head >> Maybe.map .displayName >> Maybe.withDefault "Bad Test Data"
+
+                firstFeatureName =
+                    initialModel.persistent.features |> headMust
+
+                secondFeatureName =
+                    initialModel.persistent.features |> List.drop 1 |> headMust
+            in
+                \() ->
+                    Expect.all
+                        [ verify (crossFeature firstFeatureName)
+                        , thenPressNext >> (verify (crossFeature secondFeatureName))
+                        , thenPressNext >> (verify (focusedFeature "Import"))
+                        ]
+                        focused
         , todo "one intersection is shown at a time"
         , todo "that intersection can be edited"
-        , todo "there are buttons to go to the previous / next feature, the other feature for the intersection is fixed"
         , todo "there is a button to return to table view"
         , todo "export works the same way"
         , todo "if a new feature is added, the new feature can be reached while cycling through the features"
@@ -129,9 +154,21 @@ pressNewFeatureFocusButton =
     }
 
 
+pressNextFeatureButton : Operation
+pressNextFeatureButton =
+    { description = "press the button with the nextFeature class"
+    , operate = queryByClassName "nextFeature" >> ensureSingleton >> Maybe.andThen clickButton
+    }
+
+
+
 -- complex selection / operation shortcuts
+
+
 focusOn : String -> TestState -> TestState
-focusOn featureName = select featureTable >> select (columnHeader featureName) >> operate enterFocusMode
+focusOn featureName =
+    select featureTable >> select (columnHeader featureName) >> operate enterFocusMode
+
 
 
 -- verifications
@@ -144,9 +181,20 @@ focusedFeature expectedFocusedFeatureName =
         \focusModeWrapper ->
             focusModeWrapper
                 |> (queryByClassName "focusedFeature" >> ensureSingleton)
-                |> Maybe.andThen (queryByClassName "featureName" >> ensureSingleton)
-                |> Maybe.andThen (extractText >> ensureSingleton)
+                |> Maybe.andThen featureCardGetFeatureName
                 |> Maybe.map (Expect.equal expectedFocusedFeatureName)
+    }
+
+
+crossFeature : String -> Verification
+crossFeature expectedCrossFeatureName =
+    { description = "the content of the element with the crossFeature class should be " ++ expectedCrossFeatureName
+    , verify =
+        \focusModeWrapper ->
+            focusModeWrapper
+                |> (queryByClassName "crossFeature" >> ensureSingleton)
+                |> Maybe.andThen featureCardGetFeatureName
+                |> Maybe.map (Expect.equal expectedCrossFeatureName)
     }
 
 
@@ -155,6 +203,9 @@ noFeatureTableShown =
     { description = "no feature table is shown"
     , verify = \root -> TableViewHelpers.findFeatureTableElmHtml root |> Expect.equal Nothing |> Just
     }
+
+
+
 -- other helpers
 
 
@@ -162,3 +213,10 @@ clickButton : ElmHtml msg -> Maybe msg
 clickButton button =
     HtmlTestExtra.simulate Event.click button
         |> Result.toMaybe
+
+
+featureCardGetFeatureName : ElmHtml msg -> Maybe String
+featureCardGetFeatureName featureCard =
+    featureCard
+        |> (queryByClassName "featureName" >> ensureSingleton)
+        |> Maybe.andThen (extractText >> ensureSingleton)

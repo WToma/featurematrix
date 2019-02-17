@@ -189,6 +189,14 @@ update msg model =
             in
                 { model | display = newDisplay }
 
+        FocusModeMsg focusMsg ->
+            case model.display of
+                Focus focusModel ->
+                    { model | display = Focus (FocusMode.update focusMsg focusModel) }
+
+                _ ->
+                    model
+
 
 view : Model -> Html Msg
 view model =
@@ -202,7 +210,7 @@ view model =
                 renderFeatureTable model.persistent model.parseError
 
             Focus focusModel ->
-                FocusMode.view focusModel
+                FocusMode.view focusModel |> Html.map FocusModeMsg
         )
 
 
