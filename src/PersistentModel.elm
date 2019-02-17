@@ -39,7 +39,7 @@ isFeatureVisible model feature =
     Dict.get feature.featureId model.featureVisibility |> Maybe.withDefault False
 
 
-addNewFeature : PersistentModel -> String -> String -> Result String PersistentModel
+addNewFeature : PersistentModel -> String -> String -> Result String ( PersistentModel, Feature )
 addNewFeature model newShortName newDescription =
     let
         isShortNameEmpty =
@@ -59,11 +59,14 @@ addNewFeature model newShortName newDescription =
 
                     newFeature =
                         { featureId = featureId, displayName = newShortName, description = newDescription }
+
+                    newModel =
+                        { model
+                            | features = List.append model.features [ newFeature ]
+                            , featureVisibility = Dict.insert featureId True model.featureVisibility
+                        }
                  in
-                    { model
-                        | features = List.append model.features [ newFeature ]
-                        , featureVisibility = Dict.insert featureId True model.featureVisibility
-                    }
+                    ( newModel, newFeature )
                 )
         else
             Result.Err

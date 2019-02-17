@@ -3,6 +3,7 @@ module FocusModeTests exposing (..)
 import Test exposing (Test, describe, todo, test)
 import FeatureMatrixTestFramework exposing (..)
 import TableViewHelpers exposing (findFeatureTableElmHtml, findColumnHeaderByName, extractFocusButtonFromHeaderCell)
+import ControlPanelHelpers
 import HtmlTestExtra exposing (..)
 import ElmHtml.Query exposing (queryByClassName, queryByTagName)
 import ElmHtml.InternalTypes exposing (ElmHtml)
@@ -23,7 +24,14 @@ entering =
                     |> operate enterFocusMode
                     |> select focusModePanel
                     |> verify (focusedFeature "Import")
-        , todo "there is a button on the add feature panel"
+        , test "there is a button on the add feature panel" <|
+            \() ->
+                (initialState initialModel)
+                    |> operate (typeNewFeatureName "New Feature")
+                    |> operate (typeNewFeatureDescription "New Description")
+                    |> operate pressNewFeatureFocusButton
+                    |> select focusModePanel
+                    |> verify (focusedFeature "New Feature")
         ]
 
 
@@ -93,6 +101,27 @@ enterFocusMode : Operation
 enterFocusMode =
     { description = "press the button with the focusBtn class"
     , operate = TableViewHelpers.extractFocusButtonFromHeaderCell >> Maybe.andThen clickButton
+    }
+
+
+typeNewFeatureName : String -> Operation
+typeNewFeatureName newFeatureName =
+    { description = "type '" ++ newFeatureName ++ "' into the new feature name input"
+    , operate = ControlPanelHelpers.updateNewFeatureName newFeatureName >> Result.toMaybe
+    }
+
+
+typeNewFeatureDescription : String -> Operation
+typeNewFeatureDescription newFeatureDescription =
+    { description = "type '" ++ newFeatureDescription ++ "' into the new feature description input"
+    , operate = ControlPanelHelpers.updateNewFeatureDescription newFeatureDescription >> Result.toMaybe
+    }
+
+
+pressNewFeatureFocusButton : Operation
+pressNewFeatureFocusButton =
+    { description = "press the button with the addFeatureAndFocus class"
+    , operate = queryByClassName "addFeatureAndFocus" >> ensureSingleton >> Maybe.andThen clickButton
     }
 
 

@@ -16,6 +16,7 @@ type alias Model =
 type alias NewFeatureRequest =
     { shortName : String
     , description : String
+    , enterFocusMode : Bool
     }
 
 
@@ -60,8 +61,12 @@ view model =
                 [ Html.input [ type_ "text", placeholder "Short Name of the New Feature", class "newFeatureName form-control", value model.shortName, onInput ShortNameUpdated ] [] ]
             , div [ class "input-group mb-3" ]
                 [ textarea [ class "newFeatureDescription form-control", placeholder "A description of the new feature", value model.description, onInput DescriptionUpdated ] [] ]
-            , div [ class "mb-3" ]
-                [ button [ class "btn btn-primary", onClick (AddFeature { shortName = model.shortName, description = model.description }) ] [ text "Add Feature" ] ]
+            , div [ class "btn-toolbar" ]
+                [ div [ class "mb-3 mr-3" ]
+                    [ button [ class "btn btn-primary", onClick (AddFeature { shortName = model.shortName, description = model.description, enterFocusMode = False }) ] [ text "Add Feature" ] ]
+                , div [ class "mb-3" ]
+                    [ button [ class "addFeatureAndFocus btn btn-primary", onClick (AddFeature { shortName = model.shortName, description = model.description, enterFocusMode = True }) ] [ text "Add Feature and Focus" ] ]
+                ]
             ]
 
         cardBody =

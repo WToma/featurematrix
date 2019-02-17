@@ -177,24 +177,25 @@ formatFailure failure =
                     List.tail pathElNames |> Maybe.withDefault []
 
                 remainingPathDescription =
-                    String.join " -> " remainingPath
+                    if remainingPath == [] then
+                        "App.view"
+                    else
+                        String.join " -> " remainingPath
             in
                 "selection '" ++ pathFailed ++ "' was not found afer the following selections: " ++ remainingPathDescription
 
         OperationNotFound reversePath opNotFound ->
-            let
-                pathDescription =
-                    List.reverse reversePath
-                        |> List.map .name
-                        |> String.join " -> "
-            in
-                "operation '" ++ opNotFound ++ "' was not found at the following selection: " ++ pathDescription
+            "operation '" ++ opNotFound ++ "' was not found at the following selection: " ++ (describePath reversePath)
 
         VerificationError reversePath verificationDescription ->
-            let
-                pathDescription =
-                    List.reverse reversePath
-                        |> List.map .name
-                        |> String.join " -> "
-            in
-                "verification failed: " ++ verificationDescription ++ " at path " ++ pathDescription
+            "verification failed: " ++ verificationDescription ++ " at path " ++ (describePath reversePath)
+
+
+describePath : List SelectionPathElement -> String
+describePath reversePath =
+    if reversePath == [] then
+        "App.view"
+    else
+        List.reverse reversePath
+            |> List.map .name
+            |> String.join " -> "

@@ -119,11 +119,23 @@ update msg model =
 
         AddNewFeature request ->
             case addNewFeature model.persistent request.shortName request.description of
-                Result.Ok newPersistentModel ->
-                    { model
-                        | persistent = newPersistentModel
-                        , newFeaturePanelState = NewFeaturePanel.initialModel
-                    }
+                Result.Ok ( newPersistentModel, newFeature ) ->
+                    let
+                        addedFeatureModel =
+                            { model
+                                | persistent = newPersistentModel
+                                , newFeaturePanelState = NewFeaturePanel.initialModel
+                            }
+
+                        maybeFocusMsg =
+                            if request.enterFocusMode then
+                                Just (FocusFeature newFeature.featureId)
+                            else
+                                Nothing
+                    in
+                        maybeFocusMsg
+                            |> Maybe.map ((flip update) addedFeatureModel)
+                            |> Maybe.withDefault addedFeatureModel
 
                 Result.Err reason ->
                     { model | newFeaturePanelState = NewFeaturePanel.setError reason model.newFeaturePanelState }
