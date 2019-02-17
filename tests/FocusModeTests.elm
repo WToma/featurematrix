@@ -45,14 +45,6 @@ focusMode =
                     |> verify noFeatureTableShown
         , test "there are buttons to go to the previous / next feature, the other feature for the intersection is fixed" <|
             let
-                focused =
-                    (initialState initialModel)
-                        |> focusOn "Import"
-                        |> select focusModePanel
-
-                thenPressNext =
-                    (operate pressNextFeatureButton) >> (select focusModePanel)
-
                 headMust =
                     List.head >> Maybe.map .displayName >> Maybe.withDefault "Bad Test Data"
 
@@ -63,12 +55,18 @@ focusMode =
                     initialModel.persistent.features |> List.drop 1 |> headMust
             in
                 \() ->
-                    Expect.all
-                        [ verify (crossFeature firstFeatureName)
-                        , thenPressNext >> (verify (crossFeature secondFeatureName))
-                        , thenPressNext >> (verify (focusedFeature "Import"))
-                        ]
-                        focused
+                    (initialState initialModel)
+                        |> focusOn "Import"
+                        |> select focusModePanel
+                        |> snapshot "before"
+                        |> operate pressNextFeatureButton
+                        |> select focusModePanel
+                        |> snapshot "after"
+                        |> Expect.all
+                            [ verifySnapshot "before" (crossFeature firstFeatureName)
+                            , verifySnapshot "after" (crossFeature secondFeatureName)
+                            , verifySnapshot "after" (focusedFeature "Import")
+                            ]
         , todo "one intersection is shown at a time"
         , todo "that intersection can be edited"
         , todo "there is a button to return to table view"

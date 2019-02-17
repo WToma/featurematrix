@@ -9,6 +9,8 @@ module FeatureMatrixTestFramework
         , select
         , operate
         , verify
+        , snapshot
+        , verifySnapshot
         )
 
 import Main
@@ -17,6 +19,7 @@ import ElmHtml.InternalTypes exposing (ElmHtml)
 import HtmlTestExtra
 import Expect
 import TestHelpers
+import Dict exposing (Dict)
 
 
 -- exported types
@@ -50,19 +53,23 @@ type alias Verification =
 -- unexported types
 
 
-type alias FMApplication =
-    { model : Main.Model
-    , rendered : ElmHtml Msg.Msg
-    , selected : ElmHtml Msg.Msg
-    , selectionPath : List SelectionPathElement -- newest first
-    , operationDescriptions : List String -- newest first
-    }
+type FMApplication
+    = FMApplication
+        { model : Main.Model
+        , rendered : ElmHtml Msg.Msg
+        , selected : ElmHtml Msg.Msg
+        , selectionPath : List SelectionPathElement -- newest first
+        , operationDescriptions : List String -- newest first
+        , snapshots : Dict String FMApplication
+        }
 
 
 type Failure
     = SelectionNotFound (List SelectionPathElement)
     | OperationNotFound (List SelectionPathElement) String
     | VerificationError (List SelectionPathElement) String
+    | SnapshotAlreadyExists String
+    | SnapshotDoesNotExist String
 
 
 type alias TestState =
@@ -79,13 +86,15 @@ initialState model =
         rendered =
             Main.view model |> HtmlTestExtra.fromHtml
     in
-        Ok
-            { model = model
-            , rendered = rendered
-            , selected = rendered
-            , selectionPath = []
-            , operationDescriptions = []
-            }
+        Ok <|
+            FMApplication
+                { model = model
+                , rendered = rendered
+                , selected = rendered
+                , selectionPath = []
+                , operationDescriptions = []
+                , snapshots = Dict.empty
+                }
 
 
 select : Selector -> TestState -> TestState
@@ -106,12 +115,25 @@ verify verification tstst =
         |> TestHelpers.resultToExpectation
 
 
+snapshot : String -> TestState -> TestState
+snapshot snapshotName tstst =
+    Result.andThen (snapshotApplication snapshotName) tstst
+
+
+verifySnapshot : String -> Verification -> TestState -> Expect.Expectation
+verifySnapshot snapshotName verification tstst =
+    tstst
+        |> Result.andThen (verifySnapshotOnApplication snapshotName verification)
+        |> Result.mapError formatFailure
+        |> TestHelpers.resultToExpectation
+
+
 
 -- unexported
 
 
 advanceApplicationByMsg : Msg.Msg -> String -> FMApplication -> FMApplication
-advanceApplicationByMsg msg operationDescription application =
+advanceApplicationByMsg msg operationDescription (FMApplication application) =
     let
         newModel =
             Main.update msg application.model
@@ -122,42 +144,63 @@ advanceApplicationByMsg msg operationDescription application =
         newRendered =
             Main.view newModel |> HtmlTestExtra.fromHtml
     in
-        { model = newModel
-        , rendered = newRendered
-        , selected = newRendered
-        , selectionPath = []
-        , operationDescriptions = newOpDescriptions
-        }
+        FMApplication
+            { application
+                | model = newModel
+                , rendered = newRendered
+                , selected = newRendered
+                , selectionPath = []
+                , operationDescriptions = newOpDescriptions
+            }
 
 
 selectFromApplication : Selector -> FMApplication -> TestState
-selectFromApplication selector application =
+selectFromApplication selector (FMApplication application) =
     let
         fullSelectionPath =
             selector.selectionName :: application.selectionPath
     in
         case selector.select application.rendered of
             Just selected ->
-                Ok { application | selected = selected, selectionPath = fullSelectionPath }
+                Ok <| FMApplication { application | selected = selected, selectionPath = fullSelectionPath }
 
             Nothing ->
                 Err (SelectionNotFound fullSelectionPath)
 
 
 operateOnApplication : Operation -> FMApplication -> TestState
-operateOnApplication operation application =
+operateOnApplication operation ((FMApplication application) as fmApplication) =
     case operation.operate application.selected of
         Just msg ->
-            Ok <| advanceApplicationByMsg msg operation.description application
+            Ok <| advanceApplicationByMsg msg operation.description fmApplication
 
         Nothing ->
             Err (OperationNotFound application.selectionPath operation.description)
 
 
 verifyOnApplication : Verification -> FMApplication -> Result Failure Expect.Expectation
-verifyOnApplication verification application =
+verifyOnApplication verification (FMApplication application) =
     verification.verify application.selected
         |> Result.fromMaybe (VerificationError application.selectionPath verification.description)
+
+
+snapshotApplication : String -> FMApplication -> TestState
+snapshotApplication snapshotName ((FMApplication application) as fmApplication) =
+    if not (Dict.member snapshotName application.snapshots) then
+        Ok <|
+            FMApplication
+                { application
+                    | snapshots = Dict.insert snapshotName fmApplication application.snapshots
+                }
+    else
+        Err <| (SnapshotAlreadyExists snapshotName)
+
+
+verifySnapshotOnApplication : String -> Verification -> FMApplication -> Result Failure Expect.Expectation
+verifySnapshotOnApplication snapshotName verification ((FMApplication application) as fmApplication) =
+    Dict.get snapshotName application.snapshots
+        |> Result.fromMaybe (SnapshotDoesNotExist snapshotName)
+        |> Result.andThen (verifyOnApplication verification)
 
 
 formatFailure : Failure -> String
@@ -190,6 +233,12 @@ formatFailure failure =
 
         VerificationError reversePath verificationDescription ->
             "verification failed: " ++ verificationDescription ++ " at path " ++ (describePath reversePath)
+
+        SnapshotAlreadyExists snapshotName ->
+            "attempted to take snapshot '" ++ snapshotName ++ "' twice"
+
+        SnapshotDoesNotExist snapshotName ->
+            "attempted to access snapshot '" ++ snapshotName ++ "' which does not exist"
 
 
 describePath : List SelectionPathElement -> String
