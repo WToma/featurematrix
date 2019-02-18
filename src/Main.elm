@@ -4,7 +4,7 @@ import Html exposing (Html, button, div, text, textarea, h5, ul, li, span)
 import Html.Events exposing (onClick, onInput)
 import Html.Attributes exposing (class, type_, id, value, readonly, placeholder)
 import Dict exposing (Dict)
-import PersistentModel exposing (PersistentModel, Feature, encodePersistentModel, decodePersistentModel, isFeatureVisible, addNewFeature)
+import PersistentModel exposing (PersistentModel, Feature, encodePersistentModel, decodePersistentModel, isFeatureVisible, addNewFeature, updateIntersection)
 import Msg exposing (Msg(..))
 import TableView exposing (renderFeatureTable)
 import NewFeaturePanel
@@ -84,24 +84,16 @@ update : Msg -> Model -> Model
 update msg model =
     case msg of
         IntersectionUpdated smallerId largerId newValue ->
-            if newValue /= "" then
-                let
-                    oldPersistent =
-                        model.persistent
+            let
+                newPersistentModel =
+                    updateIntersection ( smallerId, largerId ) newValue model.persistent
+            in
+                case newPersistentModel of
+                    Just newPersistent ->
+                        { model | persistent = newPersistent }
 
-                    newPersistent =
-                        { oldPersistent | intersections = Dict.insert ( smallerId, largerId ) newValue oldPersistent.intersections }
-                in
-                    { model | persistent = newPersistent }
-            else
-                let
-                    oldPersistent =
-                        model.persistent
-
-                    newPersistent =
-                        { oldPersistent | intersections = Dict.remove ( smallerId, largerId ) model.persistent.intersections }
-                in
-                    { model | persistent = newPersistent }
+                    Nothing ->
+                        { model | display = DisplayError ("intersection update failed for table mode smallerId=" ++ smallerId ++ ", largerId=" ++ largerId ++ ", newValue=" ++ newValue) }
 
         HideModel ->
             { model | showSerialized = False }
@@ -188,6 +180,29 @@ update msg model =
                         |> Maybe.withDefault (DisplayError "focus mode cannot be displayed")
             in
                 { model | display = newDisplay }
+
+        FocusModeMsg (FocusMode.IntersectionEdited ids newValue) ->
+            case model.display of
+                Focus focusModel ->
+                    let
+                        newPersistentModel =
+                            updateIntersection ids newValue model.persistent
+
+                        newFocusModeModel =
+                            Maybe.andThen (\p -> FocusMode.replacePersistentModel p focusModel) newPersistentModel
+
+                        tmp =
+                            Maybe.map2 (,) newPersistentModel newFocusModeModel
+                    in
+                        case tmp of
+                            Just ( newPersistent, newFocusModel ) ->
+                                { model | display = Focus newFocusModel, persistent = newPersistent }
+
+                            Nothing ->
+                                { model | display = DisplayError ("failed to update intersections focus mode ids=(" ++ (Tuple.first ids) ++ ", " ++ (Tuple.second ids) ++ "), newValue=" ++ newValue) }
+
+                _ ->
+                    model
 
         FocusModeMsg focusMsg ->
             case model.display of

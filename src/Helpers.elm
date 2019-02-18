@@ -306,3 +306,40 @@ window1 predicate xs =
                 ( Just x, Just y, Just z )
             else
                 window1 predicate (y :: z :: tail)
+
+
+{-| Similar to Maybe.withDefault, except in this case the fallback is also a maybe.
+
+    Just 9 |> maybeOrElse (Just 42) --> Just 9
+    Nothing |> maybeOrElse (Just 42) --> Just 42
+    Nothing |> maybeOrElse Nothing -> Nothing
+
+-}
+maybeOrElse : Maybe a -> Maybe a -> Maybe a
+maybeOrElse fallback primary =
+    case primary of
+        Just x ->
+            Just x
+
+        Nothing ->
+            fallback
+
+
+{-| Drops elements from the list until it encounters an element that satisfies the predicate.
+
+    dropUntil (\x -> x > 2) [0, 1, 2, 3, -1234] --> [3, -1234]
+    dropUntil (\x -> x > 2) [] --> []
+    dropUntil (\x -> x > 2) [0, 1, 2, -1234] --> []
+
+-}
+dropUntil : (a -> Bool) -> List a -> List a
+dropUntil predicate xs =
+    case xs of
+        [] ->
+            []
+
+        head :: tail ->
+            if predicate head then
+                xs
+            else
+                dropUntil predicate tail

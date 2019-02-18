@@ -79,6 +79,7 @@ focusMode =
                 (initialState initialModel)
                     |> defaultSelector (Just focusModePanel)
                     |> focusOn "Import"
+                    |> select focusIntersection
                     |> operate (typeIntoTextarea "Awesome content that was edited in focus mode")
                     |> operate pressNextFeatureButton
                     |> operate pressPreviousFeatureButton
@@ -146,6 +147,16 @@ tableIntersection rowFeatureDisplayName colFeatureDisplayName =
             ]
         }
     , select = TableViewHelpers.findIntersectionCell rowFeatureDisplayName colFeatureDisplayName >> Result.toMaybe
+    }
+
+
+focusIntersection : Selector
+focusIntersection =
+    { selectionName =
+        { name = "the intersection area of the focus panel"
+        , selectionSteps = [ "class=intersection", "singleton" ]
+        }
+    , select = queryByClassName "intersection" >> ensureSingleton
     }
 
 
@@ -252,8 +263,9 @@ focusIntersectionContent expectedContent =
     , verify =
         \focusModeWrapper ->
             focusModeWrapper
-                |> (queryByClassName "intersection" >> ensureSingleton)
-                |> Maybe.andThen (extractText >> ensureSingleton)
+                |> focusIntersection.select
+                |> Maybe.andThen (queryByTagName "textarea" >> ensureSingleton)
+                |> Maybe.andThen (getAttributes >> getStringAttribute "value")
                 |> Maybe.map (Expect.equal expectedContent)
     }
 

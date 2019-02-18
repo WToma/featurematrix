@@ -1,10 +1,10 @@
-module FocusMode exposing (Model, Msg, init, view, update)
+module FocusMode exposing (Model, Msg(IntersectionEdited), init, replacePersistentModel, view, update)
 
 import PersistentModel exposing (Feature, PersistentModel)
-import Html exposing (Html, div, text, table, h5, tr, th, td, span, button)
-import Html.Attributes exposing (class)
+import Html exposing (Html, div, text, table, h5, tr, th, td, span, button, textarea)
+import Html.Attributes exposing (class, value)
 import Html.Events exposing (onClick, onInput)
-import Helpers exposing (ensureSingleton, flattenMaybeList, window1)
+import Helpers exposing (ensureSingleton, flattenMaybeList, window1, maybeOrElse, dropUntil)
 
 
 -- exported types
@@ -20,6 +20,7 @@ type alias Model =
 type Msg
     = PreviousCrossFeature
     | NextCrossFeature
+    | IntersectionEdited ( String, String ) String
 
 
 
@@ -36,6 +37,26 @@ init persistentModel focusedFeatureId =
             List.head persistentModel.features
     in
         Maybe.map2 (\f c -> { persistentModel = persistentModel, focusedFeature = f, crossFeature = c }) focusedFeature crossFeature
+
+
+replacePersistentModel : PersistentModel -> Model -> Maybe Model
+replacePersistentModel newPersistentModel oldFocusModel =
+    let
+        focusedFeature =
+            newPersistentModel.features
+                |> List.filter (\f -> f.featureId == oldFocusModel.focusedFeature.featureId)
+                |> ensureSingleton
+
+        crossFeature =
+            oldFocusModel.persistentModel.features
+                |> dropUntil (\f -> f.featureId == oldFocusModel.crossFeature.featureId)
+                |> List.filter (\f -> List.member f.featureId (List.map .featureId newPersistentModel.features))
+                |> List.head
+                |> Maybe.map (\candidate -> List.filter (\f -> f.featureId == candidate.featureId) newPersistentModel.features)
+                |> Maybe.andThen ensureSingleton
+                |> maybeOrElse (List.head newPersistentModel.features)
+    in
+        Maybe.map2 (\f c -> { persistentModel = newPersistentModel, focusedFeature = f, crossFeature = c }) focusedFeature crossFeature
 
 
 view : Model -> Html Msg
@@ -56,7 +77,14 @@ view model =
                     ]
                 , td [ class "focusTable" ]
                     [ -- intersection
-                      div [ class "intersection" ] [ text (displayedIntersection model) ]
+                      div [ class "intersection" ]
+                        [ textarea
+                            [ class "form-control"
+                            , value (displayedIntersection model)
+                            , onInput (IntersectionEdited ( model.focusedFeature.featureId, model.crossFeature.featureId ))
+                            ]
+                            []
+                        ]
                     ]
                 ]
             ]
@@ -83,6 +111,9 @@ update msg model =
                 maybeNextFeature
                     |> Maybe.map (\f -> { model | crossFeature = f })
                     |> Maybe.withDefault model
+
+        IntersectionEdited _ _ ->
+            model
 
 
 

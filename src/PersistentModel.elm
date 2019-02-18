@@ -7,13 +7,14 @@ module PersistentModel
         , isFeatureVisible
         , addNewFeature
         , getIntersection
+        , updateIntersection
         )
 
 import Dict exposing (Dict)
 import Set
 import Json.Encode as JE
 import Json.Decode as JD
-import Helpers exposing (counts, flattenMaybeList, phraseToCamelCase)
+import Helpers exposing (counts, flattenMaybeList, phraseToCamelCase, firstIndexOf)
 
 
 type alias PersistentModel =
@@ -88,6 +89,29 @@ getIntersectionById fid1 fid2 persistentModel =
 getIntersection : Feature -> Feature -> PersistentModel -> Maybe String
 getIntersection f1 f2 =
     getIntersectionById f1.featureId f2.featureId
+
+
+updateIntersection : ( String, String ) -> String -> PersistentModel -> Maybe PersistentModel
+updateIntersection ids newValue model =
+    let
+        ( smallerId, largerId ) =
+            Helpers.orderTuple ids
+
+        idsValid =
+            isExistingFeatureId smallerId model && isExistingFeatureId largerId model
+    in
+        if idsValid then
+            if newValue /= "" then
+                Just { model | intersections = Dict.insert ( smallerId, largerId ) newValue model.intersections }
+            else
+                Just { model | intersections = Dict.remove ( smallerId, largerId ) model.intersections }
+        else
+            Nothing
+
+
+isExistingFeatureId : String -> PersistentModel -> Bool
+isExistingFeatureId featureId model =
+    firstIndexOf (\f -> f.featureId == featureId) model.features /= Nothing
 
 
 
