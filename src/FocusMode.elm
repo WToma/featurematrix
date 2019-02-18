@@ -1,4 +1,4 @@
-module FocusMode exposing (Model, Msg(IntersectionEdited), init, replacePersistentModel, view, update)
+module FocusMode exposing (Model, Msg(IntersectionEdited, ReturnToTableView), init, replacePersistentModel, view, update)
 
 import PersistentModel exposing (Feature, PersistentModel)
 import Html exposing (Html, div, text, table, h5, tr, th, td, span, button, textarea)
@@ -21,6 +21,7 @@ type Msg
     = PreviousCrossFeature
     | NextCrossFeature
     | IntersectionEdited ( String, String ) String
+    | ReturnToTableView
 
 
 
@@ -64,7 +65,8 @@ view model =
     div [ class "focusModeWrapper" ]
         [ table [ class "focusTable table" ]
             [ tr []
-                [ th [ class "focusTable" ] [] -- empty
+                [ th [ class "focusTable" ]
+                    [ div [] [ button [ class "returnToTableView btn btn-primary", onClick ReturnToTableView ] [ text "Show Full Matrix" ] ] ]
                 , th [ class "focusTable" ]
                     [ -- focused feature
                       renderFeatureCard model.focusedFeature "focusedFeature"
@@ -112,7 +114,8 @@ update msg model =
                     |> Maybe.map (\f -> { model | crossFeature = f })
                     |> Maybe.withDefault model
 
-        IntersectionEdited _ _ ->
+        -- the rest of the messages are handled by the caller
+        _ ->
             model
 
 

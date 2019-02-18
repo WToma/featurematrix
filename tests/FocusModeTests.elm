@@ -84,8 +84,18 @@ focusMode =
                     |> operate pressNextFeatureButton
                     |> operate pressPreviousFeatureButton
                     |> verify (focusIntersectionContent "Awesome content that was edited in focus mode")
-        , todo "there is a button to return to table view"
-        , todo "export works the same way"
+        , test "there is a button to return to table view; intersections edited in focus mode are preserved in table view" <|
+            \() ->
+                (initialState initialModel)
+                    |> focusOn "Import"
+                    |> select focusModePanel
+                    |> select focusIntersection
+                    |> operate (typeIntoTextarea "Awesome content edited in focus mode")
+                    |> select focusModePanel
+                    |> operate pressReturnToTableViewButton
+                    |> select featureTable
+                    |> verify (tableIntersectionContent "Import" initialFirstFeatureName "Awesome content edited in focus mode")
+        , todo "export works the same way as in table view"
         , todo "if a new feature is added, the new feature can be reached while cycling through the features"
         , todo "hidden features still show up"
         ]
@@ -213,6 +223,13 @@ typeIntoTextarea content =
     }
 
 
+pressReturnToTableViewButton : Operation
+pressReturnToTableViewButton =
+    { description = "press the button with the returnToTableView class"
+    , operate = queryByClassName "returnToTableView" >> ensureSingleton >> Maybe.andThen clickButton
+    }
+
+
 
 -- complex selection / operation shortcuts
 
@@ -264,6 +281,19 @@ focusIntersectionContent expectedContent =
         \focusModeWrapper ->
             focusModeWrapper
                 |> focusIntersection.select
+                |> Maybe.andThen (queryByTagName "textarea" >> ensureSingleton)
+                |> Maybe.andThen (getAttributes >> getStringAttribute "value")
+                |> Maybe.map (Expect.equal expectedContent)
+    }
+
+
+tableIntersectionContent : String -> String -> String -> Verification
+tableIntersectionContent rowDisplayName colDisplayName expectedContent =
+    { description = "the table intersection of '" ++ rowDisplayName ++ "' and '" ++ colDisplayName ++ "' is '" ++ expectedContent ++ "'"
+    , verify =
+        \featureTable ->
+            featureTable
+                |> (tableIntersection rowDisplayName colDisplayName).select
                 |> Maybe.andThen (queryByTagName "textarea" >> ensureSingleton)
                 |> Maybe.andThen (getAttributes >> getStringAttribute "value")
                 |> Maybe.map (Expect.equal expectedContent)

@@ -204,6 +204,9 @@ update msg model =
                 _ ->
                     model
 
+        FocusModeMsg FocusMode.ReturnToTableView ->
+            { model | display = Table }
+
         FocusModeMsg focusMsg ->
             case model.display of
                 Focus focusModel ->
