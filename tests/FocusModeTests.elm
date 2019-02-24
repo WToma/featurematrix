@@ -129,7 +129,7 @@ columnHeader featureDisplayName =
 
 focusModePanel : Selector
 focusModePanel =
-    buildSelector "Focus Mode" [ esClassName "focusModeWrapper" ]
+    buildSelector "Focus Mode Panel" [ esClassName "focusModeWrapper" ]
 
 
 tableIntersection : String -> String -> Selector
@@ -146,64 +146,62 @@ focusIntersection =
     buildSelector "the intersection area of the focus panel" [ esClassName "intersection" ]
 
 
+focusButton : Selector
+focusButton =
+    buildSelector "Focus Button" [ ( "<button class='focusBtn'>", TableViewHelpers.extractFocusButtonFromHeaderCell ) ]
+
+
 
 -- operations
 
 
 enterFocusMode : Operation
 enterFocusMode =
-    { description = "press the button with the focusBtn class"
-    , operate = TableViewHelpers.extractFocusButtonFromHeaderCell >> Maybe.andThen clickButton
-    }
+    clickButton focusButton
 
 
 typeNewFeatureName : String -> Operation
 typeNewFeatureName newFeatureName =
     { description = "type '" ++ newFeatureName ++ "' into the new feature name input"
-    , operate = ControlPanelHelpers.updateNewFeatureName newFeatureName >> Result.toMaybe
+    , select = identitySelector
+    , operate = ControlPanelHelpers.updateNewFeatureName newFeatureName
     }
 
 
 typeNewFeatureDescription : String -> Operation
 typeNewFeatureDescription newFeatureDescription =
     { description = "type '" ++ newFeatureDescription ++ "' into the new feature description input"
-    , operate = ControlPanelHelpers.updateNewFeatureDescription newFeatureDescription >> Result.toMaybe
+    , select = identitySelector
+    , operate = ControlPanelHelpers.updateNewFeatureDescription newFeatureDescription
     }
 
 
 pressNewFeatureFocusButton : Operation
 pressNewFeatureFocusButton =
-    { description = "press the button with the addFeatureAndFocus class"
-    , operate = queryByClassName "addFeatureAndFocus" >> ensureSingleton >> Maybe.andThen clickButton
-    }
+    clickButton <| buildSelector "Add Feature and Focus Button" [ esClassName "addFeatureAndFocus" ]
 
 
 pressNextFeatureButton : Operation
 pressNextFeatureButton =
-    { description = "press the button with the nextFeature class"
-    , operate = queryByClassName "nextFeature" >> ensureSingleton >> Maybe.andThen clickButton
-    }
+    clickButton <| buildSelector "Next Feature Button" [ esClassName "nextFeature" ]
 
 
 pressPreviousFeatureButton : Operation
 pressPreviousFeatureButton =
-    { description = "press the button with the previousFeature class"
-    , operate = queryByClassName "previousFeature" >> ensureSingleton >> Maybe.andThen clickButton
-    }
+    clickButton <| buildSelector "Previous Feature Button" [ esClassName "previousFeature" ]
 
 
 typeIntoTextarea : String -> Operation
 typeIntoTextarea content =
-    { description = "type '" ++ content ++ "' into the only textarea of the current selection"
-    , operate = queryByTagName "textarea" >> ensureSingleton >> Maybe.andThen (typeInto content)
+    { description = "type '" ++ content ++ "' into the only textarea"
+    , select = buildSelector "the only textarea" [ esTagName "textarea" ]
+    , operate = typeInto content
     }
 
 
 pressReturnToTableViewButton : Operation
 pressReturnToTableViewButton =
-    { description = "press the button with the returnToTableView class"
-    , operate = queryByClassName "returnToTableView" >> ensureSingleton >> Maybe.andThen clickButton
-    }
+    clickButton <| buildSelector "Return to Table View Button" [ esClassName "returnToTableView" ]
 
 
 
@@ -280,16 +278,17 @@ tableIntersectionContent rowDisplayName colDisplayName expectedContent =
 -- other helpers
 
 
-clickButton : ElmHtml msg -> Maybe msg
-clickButton button =
-    HtmlTestExtra.simulate Event.click button
-        |> Result.toMaybe
+clickButton : Selector -> Operation
+clickButton selector =
+    { description = "click " ++ selector.selectionName
+    , select = selector
+    , operate = HtmlTestExtra.simulate Event.click
+    }
 
 
-typeInto : String -> ElmHtml msg -> Maybe msg
-typeInto content input =
-    HtmlTestExtra.simulate (Event.input content) input
-        |> Result.toMaybe
+typeInto : String -> ElmHtml msg -> Result String msg
+typeInto content =
+    HtmlTestExtra.simulate (Event.input content)
 
 
 featureCardGetFeatureName : ElmHtml msg -> Maybe String
@@ -306,3 +305,8 @@ featureCardGetFeatureName featureCard =
 esClassName : String -> ElementarySelectionStep
 esClassName className =
     ( "class='" ++ className ++ "'", queryByClassName className >> ensureSingleton )
+
+
+esTagName : String -> ElementarySelectionStep
+esTagName tagName =
+    ( "<" ++ tagName ++ "/>", queryByTagName tagName >> ensureSingleton )

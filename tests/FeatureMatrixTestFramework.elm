@@ -4,10 +4,12 @@ module FeatureMatrixTestFramework
         , SelectionName
         , ElementarySelectionStep
         , Selector
+        , ElementaryOperation
         , Operation
         , Verification
         , TestState
         , initialState
+        , identitySelector
         , select
         , operate
         , verify
@@ -53,9 +55,14 @@ type alias Selector =
     }
 
 
+type alias ElementaryOperation =
+    ( String, ElmHtml Msg.Msg -> Maybe Msg.Msg )
+
+
 type alias Operation =
     { description : String
-    , operate : ElmHtml Msg.Msg -> Maybe Msg.Msg
+    , select : Selector
+    , operate : ElmHtml Msg.Msg -> Result String Msg.Msg
     }
 
 
@@ -81,13 +88,21 @@ type FMApplication
         }
 
 
+type alias FailedApplicationSelection =
+    { successfulSelections : List SelectionName
+    , failedSelectionName : String
+    , failedSelection : FailedSelection
+    }
+
+
 type Failure
-    = SelectionNotFound
+    = SelectionNotFound FailedApplicationSelection
+    | OperationSelectionNotFound FailedApplicationSelection String
+    | OperationFailed
         { successfulSelections : List SelectionName
-        , failedSelectionName : String
-        , failedSelection : FailedSelection
+        , operationDescription : String
+        , operationFailure : String
         }
-    | OperationNotFound (List SelectionName) String
     | VerificationError (List SelectionName) String
     | SnapshotAlreadyExists String
     | SnapshotDoesNotExist String
@@ -123,9 +138,16 @@ initialState model =
                 }
 
 
+identitySelector : Selector
+identitySelector =
+    { selectionName = identitySelectorName, select = Ok }
+
+
 select : Selector -> TestState -> TestState
 select selector tstst =
-    Result.andThen (selectFromApplication selector) tstst
+    tstst
+        |> Result.map (selectFromApplication selector)
+        |> Result.andThen (Result.mapError SelectionNotFound)
 
 
 operate : Operation -> TestState -> TestState
@@ -197,7 +219,7 @@ advanceApplicationByMsg msg operationDescription (FMApplication application) =
             }
 
 
-selectFromApplication : Selector -> FMApplication -> TestState
+selectFromApplication : Selector -> FMApplication -> Result FailedApplicationSelection FMApplication
 selectFromApplication selector (FMApplication application) =
     case selector.select application.selected of
         Ok selected ->
@@ -209,31 +231,41 @@ selectFromApplication selector (FMApplication application) =
                     }
 
         Err failedSelection ->
-            Err <|
-                SelectionNotFound
-                    { successfulSelections = application.selectionPath
-                    , failedSelectionName = selector.selectionName
-                    , failedSelection = failedSelection
-                    }
+            Err
+                { successfulSelections = application.selectionPath
+                , failedSelectionName = selector.selectionName
+                , failedSelection = failedSelection
+                }
 
 
 operateOnApplication : Operation -> FMApplication -> TestState
 operateOnApplication operation ((FMApplication application) as fmApplication) =
-    case operation.operate application.selected of
-        Just msg ->
-            let
-                updatedApplication =
-                    advanceApplicationByMsg msg operation.description fmApplication
-            in
-                case application.defaultSelector of
-                    Nothing ->
-                        Ok updatedApplication
+    case selectFromApplication operation.select fmApplication of
+        Ok ((FMApplication application) as fmApplication) ->
+            case operation.operate application.selected of
+                Ok msg ->
+                    let
+                        updatedApplication =
+                            advanceApplicationByMsg msg operation.description fmApplication
+                    in
+                        case application.defaultSelector of
+                            Nothing ->
+                                Ok updatedApplication
 
-                    Just defaultSelector ->
-                        selectFromApplication defaultSelector updatedApplication
+                            Just defaultSelector ->
+                                selectFromApplication defaultSelector updatedApplication
+                                    |> Result.mapError SelectionNotFound
 
-        Nothing ->
-            Err (OperationNotFound application.selectionPath operation.description)
+                Err operationFailure ->
+                    Err <|
+                        OperationFailed
+                            { successfulSelections = application.selectionPath
+                            , operationDescription = operation.description
+                            , operationFailure = operationFailure
+                            }
+
+        Err failedApplicationSelection ->
+            Err (OperationSelectionNotFound failedApplicationSelection operation.description)
 
 
 verifyOnApplication : Verification -> FMApplication -> Result Failure Expect.Expectation
@@ -269,16 +301,22 @@ setDefaultSelectorOnApplication newDefaultSelector (FMApplication application) =
 formatFailure : Failure -> String
 formatFailure failure =
     case failure of
-        SelectionNotFound { successfulSelections, failedSelectionName, failedSelection } ->
-            "selection '"
-                ++ failedSelectionName
-                ++ "' was not found afer the following selections: "
-                ++ (describePath successfulSelections)
-                ++ ". the details of the failed selection:\n"
-                ++ (describeFailedSelection failedSelection)
+        SelectionNotFound failedApplicationSelection ->
+            describeFailedApplicationSelection failedApplicationSelection
 
-        OperationNotFound reversePath opNotFound ->
-            "operation '" ++ opNotFound ++ "' was not found at the following selection: " ++ (describePath reversePath)
+        OperationSelectionNotFound failedSelection operationDescription ->
+            "operation '"
+                ++ operationDescription
+                ++ "' failed because "
+                ++ (describeFailedApplicationSelection failedSelection)
+
+        OperationFailed { successfulSelections, operationDescription, operationFailure } ->
+            "operation '"
+                ++ operationDescription
+                ++ "' failed at the following selection: "
+                ++ (describePath successfulSelections)
+                ++ ". the details of the failed operation:\n"
+                ++ operationFailure
 
         VerificationError reversePath verificationDescription ->
             "verification failed: " ++ verificationDescription ++ " at path " ++ (describePath reversePath)
@@ -290,13 +328,32 @@ formatFailure failure =
             "attempted to access snapshot '" ++ snapshotName ++ "' which does not exist"
 
 
+describeFailedApplicationSelection : FailedApplicationSelection -> String
+describeFailedApplicationSelection { successfulSelections, failedSelectionName, failedSelection } =
+    "selection '"
+        ++ failedSelectionName
+        ++ "' was not found afer the following selections: "
+        ++ (describePath successfulSelections)
+        ++ ". the details of the failed selection:\n"
+        ++ (describeFailedSelection failedSelection)
+
+
+identitySelectorName : String
+identitySelectorName =
+    "FeatureMatrixTestFrameworkInternal__identity"
+
+
 describePath : List SelectionName -> String
 describePath reversePath =
-    if reversePath == [] then
-        "App.view"
-    else
-        List.reverse reversePath
-            |> String.join " -> "
+    let
+        filteredReversePath =
+            List.filter (\x -> x /= identitySelectorName) reversePath
+    in
+        if filteredReversePath == [] then
+            "App.view"
+        else
+            List.reverse filteredReversePath
+                |> String.join " -> "
 
 
 describeFailedSelection : FailedSelection -> String
