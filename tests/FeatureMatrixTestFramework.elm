@@ -199,7 +199,7 @@ advanceApplicationByMsg msg operationDescription (FMApplication application) =
 
 selectFromApplication : Selector -> FMApplication -> TestState
 selectFromApplication selector (FMApplication application) =
-    case selector.select application.rendered of
+    case selector.select application.selected of
         Ok selected ->
             Ok <|
                 FMApplication
