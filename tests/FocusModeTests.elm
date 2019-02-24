@@ -117,57 +117,33 @@ importing =
 
 featureTable : Selector
 featureTable =
-    { selectionName =
-        { name = "Feature Table"
-        , selectionSteps = [ "<table class='featureTable'>" ]
-        }
-    , select = TableViewHelpers.findFeatureTableElmHtml
-    }
+    buildSelector "Feature Table" [ ( "<table class='featureTable'>", TableViewHelpers.findFeatureTableElmHtml ) ]
 
 
 columnHeader : String -> Selector
 columnHeader featureDisplayName =
-    { selectionName =
-        { name = "Column Header called " ++ featureDisplayName
-        , selectionSteps = [ "<div>", "where text=" ++ featureDisplayName ]
-        }
-    , select = TableViewHelpers.findColumnHeaderByName featureDisplayName
-    }
+    buildSelector
+        ("Column Header called " ++ featureDisplayName)
+        [ ( "<div>" ++ featureDisplayName ++ "</div>", TableViewHelpers.findColumnHeaderByName featureDisplayName ) ]
 
 
 focusModePanel : Selector
 focusModePanel =
-    { selectionName =
-        { name = "Focus Mode"
-        , selectionSteps = [ "class=focusModeWrapper", "singleton" ]
-        }
-    , select = queryByClassName "focusModeWrapper" >> ensureSingleton
-    }
+    buildSelector "Focus Mode" [ esClassName "focusModeWrapper" ]
 
 
 tableIntersection : String -> String -> Selector
 tableIntersection rowFeatureDisplayName colFeatureDisplayName =
-    { selectionName =
-        { name = "The intersection of '" ++ rowFeatureDisplayName ++ "' and '" ++ colFeatureDisplayName ++ "'"
-        , selectionSteps =
-            [ "establish the row header index of '" ++ rowFeatureDisplayName ++ "' in the feature table"
-            , "select that row from the table"
-            , "establish the column header index of '" ++ colFeatureDisplayName ++ "' in the row"
-            , "select that cell from the row"
-            ]
-        }
-    , select = TableViewHelpers.findIntersectionCell rowFeatureDisplayName colFeatureDisplayName >> Result.toMaybe
+    { selectionName = "The intersection of '" ++ rowFeatureDisplayName ++ "' and '" ++ colFeatureDisplayName ++ "'"
+    , select =
+        TableViewHelpers.findIntersectionCell rowFeatureDisplayName colFeatureDisplayName
+            >> Result.mapError (\err -> { failedSelectionStep = err, successfulSelectionSteps = [] })
     }
 
 
 focusIntersection : Selector
 focusIntersection =
-    { selectionName =
-        { name = "the intersection area of the focus panel"
-        , selectionSteps = [ "class=intersection", "singleton" ]
-        }
-    , select = queryByClassName "intersection" >> ensureSingleton
-    }
+    buildSelector "the intersection area of the focus panel" [ esClassName "intersection" ]
 
 
 
@@ -280,7 +256,7 @@ focusIntersectionContent expectedContent =
     , verify =
         \focusModeWrapper ->
             focusModeWrapper
-                |> focusIntersection.select
+                |> (focusIntersection.select >> Result.toMaybe)
                 |> Maybe.andThen (queryByTagName "textarea" >> ensureSingleton)
                 |> Maybe.andThen (getAttributes >> getStringAttribute "value")
                 |> Maybe.map (Expect.equal expectedContent)
@@ -293,7 +269,7 @@ tableIntersectionContent rowDisplayName colDisplayName expectedContent =
     , verify =
         \featureTable ->
             featureTable
-                |> (tableIntersection rowDisplayName colDisplayName).select
+                |> ((tableIntersection rowDisplayName colDisplayName).select >> Result.toMaybe)
                 |> Maybe.andThen (queryByTagName "textarea" >> ensureSingleton)
                 |> Maybe.andThen (getAttributes >> getStringAttribute "value")
                 |> Maybe.map (Expect.equal expectedContent)
@@ -321,3 +297,12 @@ featureCardGetFeatureName featureCard =
     featureCard
         |> (queryByClassName "featureName" >> ensureSingleton)
         |> Maybe.andThen (extractText >> ensureSingleton)
+
+
+
+-- elementary selectors
+
+
+esClassName : String -> ElementarySelectionStep
+esClassName className =
+    ( "class='" ++ className ++ "'", queryByClassName className >> ensureSingleton )

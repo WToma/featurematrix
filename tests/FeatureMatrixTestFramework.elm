@@ -1,6 +1,8 @@
 module FeatureMatrixTestFramework
     exposing
-        ( SelectionPathElement
+        ( SelectionStepName
+        , SelectionName
+        , ElementarySelectionStep
         , Selector
         , Operation
         , Verification
@@ -12,6 +14,7 @@ module FeatureMatrixTestFramework
         , snapshot
         , verifySnapshot
         , defaultSelector
+        , buildSelector
         )
 
 import Main
@@ -26,15 +29,27 @@ import Dict exposing (Dict)
 -- exported types
 
 
-type alias SelectionPathElement =
-    { name : String
-    , selectionSteps : List String
+type alias SelectionStepName =
+    String
+
+
+type alias SelectionName =
+    String
+
+
+type alias FailedSelection =
+    { failedSelectionStep : SelectionStepName
+    , successfulSelectionSteps : List SelectionStepName
     }
 
 
+type alias ElementarySelectionStep =
+    ( SelectionStepName, ElmHtml Msg.Msg -> Maybe (ElmHtml Msg.Msg) )
+
+
 type alias Selector =
-    { selectionName : SelectionPathElement
-    , select : ElmHtml Msg.Msg -> Maybe (ElmHtml Msg.Msg)
+    { selectionName : SelectionName
+    , select : ElmHtml Msg.Msg -> Result FailedSelection (ElmHtml Msg.Msg)
     }
 
 
@@ -59,7 +74,7 @@ type FMApplication
         { model : Main.Model
         , rendered : ElmHtml Msg.Msg
         , selected : ElmHtml Msg.Msg
-        , selectionPath : List SelectionPathElement -- newest first
+        , selectionPath : List SelectionName -- newest first
         , operationDescriptions : List String -- newest first
         , snapshots : Dict String FMApplication
         , defaultSelector : Maybe Selector
@@ -67,15 +82,23 @@ type FMApplication
 
 
 type Failure
-    = SelectionNotFound (List SelectionPathElement)
-    | OperationNotFound (List SelectionPathElement) String
-    | VerificationError (List SelectionPathElement) String
+    = SelectionNotFound
+        { successfulSelections : List SelectionName
+        , failedSelectionName : String
+        , failedSelection : FailedSelection
+        }
+    | OperationNotFound (List SelectionName) String
+    | VerificationError (List SelectionName) String
     | SnapshotAlreadyExists String
     | SnapshotDoesNotExist String
 
 
 type alias TestState =
     Result Failure FMApplication
+
+
+type alias PartialSelector =
+    ElmHtml Msg.Msg -> Result FailedSelection ( List String, ElmHtml Msg.Msg )
 
 
 
@@ -136,6 +159,18 @@ defaultSelector newDefaultSelector tstst =
     Result.map (setDefaultSelectorOnApplication newDefaultSelector) tstst
 
 
+buildSelector : SelectionName -> List ElementarySelectionStep -> Selector
+buildSelector name steps =
+    let
+        select : PartialSelector
+        select =
+            steps |> List.foldl appendBasicSelector (\html -> Ok ( [], html ))
+    in
+        { selectionName = name
+        , select = (select >> (Result.map Tuple.second))
+        }
+
+
 
 -- unexported
 
@@ -164,16 +199,22 @@ advanceApplicationByMsg msg operationDescription (FMApplication application) =
 
 selectFromApplication : Selector -> FMApplication -> TestState
 selectFromApplication selector (FMApplication application) =
-    let
-        fullSelectionPath =
-            selector.selectionName :: application.selectionPath
-    in
-        case selector.select application.rendered of
-            Just selected ->
-                Ok <| FMApplication { application | selected = selected, selectionPath = fullSelectionPath }
+    case selector.select application.rendered of
+        Ok selected ->
+            Ok <|
+                FMApplication
+                    { application
+                        | selected = selected
+                        , selectionPath = selector.selectionName :: application.selectionPath
+                    }
 
-            Nothing ->
-                Err (SelectionNotFound fullSelectionPath)
+        Err failedSelection ->
+            Err <|
+                SelectionNotFound
+                    { successfulSelections = application.selectionPath
+                    , failedSelectionName = selector.selectionName
+                    , failedSelection = failedSelection
+                    }
 
 
 operateOnApplication : Operation -> FMApplication -> TestState
@@ -228,15 +269,13 @@ setDefaultSelectorOnApplication newDefaultSelector (FMApplication application) =
 formatFailure : Failure -> String
 formatFailure failure =
     case failure of
-        SelectionNotFound reversePath ->
-            let
-                pathFailed =
-                    List.head reversePath |> Maybe.map .name |> Maybe.withDefault ""
-
-                remainingPath =
-                    List.tail reversePath |> Maybe.withDefault []
-            in
-                "selection '" ++ pathFailed ++ "' was not found afer the following selections: " ++ (describePath remainingPath)
+        SelectionNotFound { successfulSelections, failedSelectionName, failedSelection } ->
+            "selection '"
+                ++ failedSelectionName
+                ++ "' was not found afer the following selections: "
+                ++ (describePath successfulSelections)
+                ++ ". the details of the failed selection:\n"
+                ++ (describeFailedSelection failedSelection)
 
         OperationNotFound reversePath opNotFound ->
             "operation '" ++ opNotFound ++ "' was not found at the following selection: " ++ (describePath reversePath)
@@ -251,11 +290,38 @@ formatFailure failure =
             "attempted to access snapshot '" ++ snapshotName ++ "' which does not exist"
 
 
-describePath : List SelectionPathElement -> String
+describePath : List SelectionName -> String
 describePath reversePath =
     if reversePath == [] then
         "App.view"
     else
         List.reverse reversePath
-            |> List.map .name
             |> String.join " -> "
+
+
+describeFailedSelection : FailedSelection -> String
+describeFailedSelection failedSelection =
+    let
+        okElements =
+            failedSelection.successfulSelectionSteps
+                |> List.reverse
+                |> List.map ((++) " ok")
+                |> String.join " ->\n"
+    in
+        okElements ++ failedSelection.failedSelectionStep ++ " <-- THIS ONE FAILED"
+
+
+appendBasicSelector : ElementarySelectionStep -> PartialSelector -> PartialSelector
+appendBasicSelector ( newSelectionName, selectFurther ) selector =
+    \html ->
+        case selector html of
+            Ok ( successfulPath, partialSelected ) ->
+                case selectFurther partialSelected of
+                    Just selected ->
+                        Ok ( newSelectionName :: successfulPath, selected )
+
+                    Nothing ->
+                        Err { failedSelectionStep = newSelectionName, successfulSelectionSteps = successfulPath }
+
+            Err failedAlready ->
+                Err failedAlready
