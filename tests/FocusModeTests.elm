@@ -95,7 +95,14 @@ focusMode =
                     |> operate pressReturnToTableViewButton
                     |> select featureTable
                     |> verify (tableIntersectionContent "Import" initialFirstFeatureName "Awesome content edited in focus mode")
-        , todo "export works the same way as in table view"
+        , test "export works the same way as in table view (as in, updates immediately if shown while editing)" <|
+            \() ->
+                (initialState initialModel)
+                    |> operate showImportExportPanel
+                    |> focusOn "Import"
+                    |> select focusIntersection
+                    |> operate (typeIntoTextarea "Awesome content that was edited in focus mode")
+                    |> verify (importExportContentContains "Awesome content that was edited in focus mode")
         , todo "if a new feature is added, the new feature can be reached while cycling through the features"
         , todo "hidden features still show up"
         ]
@@ -219,6 +226,14 @@ pressReturnToTableViewButton =
     clickButton <| buildSelector "Return to Table View Button" [ esClassName "returnToTableView" ]
 
 
+showImportExportPanel : Operation
+showImportExportPanel =
+    clickButton <|
+        buildSelector
+            "Show/Hide Model Button"
+            [ ( "Show/Hide Model Button", ControlPanelHelpers.findShowHideModelButton ) ]
+
+
 
 -- complex selection / operation shortcuts
 
@@ -260,6 +275,26 @@ tableIntersectionContent rowDisplayName colDisplayName =
     verifyStringAttribute
         (combineSelectors (tableIntersection rowDisplayName colDisplayName) textArea)
         "value"
+
+
+importExportContentContains : String -> Verification
+importExportContentContains substring =
+    { description = "the exported model contains '" ++ substring ++ "'"
+    , select =
+        buildSelector
+            "Import / Export Model Textbox"
+            [ ( "Import / Export Model Textbox", ControlPanelHelpers.findExportImportTextField ) ]
+    , verify =
+        getAttributes
+            >> getStringAttribute "value"
+            >> Result.fromMaybe "'value' attribute not found"
+            >> Result.map
+                (\content ->
+                    Expect.true
+                        ("expected content to contain '" ++ substring ++ "' but it did not")
+                        (String.contains substring content)
+                )
+    }
 
 
 
