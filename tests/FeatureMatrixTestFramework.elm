@@ -4,7 +4,6 @@ module FeatureMatrixTestFramework
         , SelectionName
         , ElementarySelectionStep
         , Selector
-        , ElementaryOperation
         , Operation
         , Verification
         , TestState
@@ -17,6 +16,7 @@ module FeatureMatrixTestFramework
         , verifySnapshot
         , defaultSelector
         , buildSelector
+        , combineSelectors
         )
 
 import Main
@@ -55,10 +55,6 @@ type alias Selector =
     }
 
 
-type alias ElementaryOperation =
-    ( String, ElmHtml Msg.Msg -> Maybe Msg.Msg )
-
-
 type alias Operation =
     { description : String
     , select : Selector
@@ -68,7 +64,8 @@ type alias Operation =
 
 type alias Verification =
     { description : String
-    , verify : ElmHtml Msg.Msg -> Maybe Expect.Expectation
+    , select : Selector
+    , verify : ElmHtml Msg.Msg -> Result String Expect.Expectation
     }
 
 
@@ -103,7 +100,12 @@ type Failure
         , operationDescription : String
         , operationFailure : String
         }
-    | VerificationError (List SelectionName) String
+    | VerificationSelectionNotFound FailedApplicationSelection String
+    | VerificationError
+        { successfulSelections : List SelectionName
+        , verificationDescription : String
+        , verificationFailure : String
+        }
     | SnapshotAlreadyExists String
     | SnapshotDoesNotExist String
 
@@ -193,6 +195,28 @@ buildSelector name steps =
         }
 
 
+{-| (>>) for selectors
+-}
+combineSelectors : Selector -> Selector -> Selector
+combineSelectors selector1 selector2 =
+    { selectionName = selector2.selectionName ++ " in " ++ selector1.selectionName
+    , select =
+        selector1.select
+            >> Result.andThen
+                (selector2.select
+                    >> Result.mapError
+                        (\failedSelection2 ->
+                            if selector1.selectionName /= identitySelectorName then
+                                { failedSelection2
+                                    | successfulSelectionSteps = failedSelection2.successfulSelectionSteps ++ [ selector1.selectionName ]
+                                }
+                            else
+                                failedSelection2
+                        )
+                )
+    }
+
+
 
 -- unexported
 
@@ -269,9 +293,21 @@ operateOnApplication operation ((FMApplication application) as fmApplication) =
 
 
 verifyOnApplication : Verification -> FMApplication -> Result Failure Expect.Expectation
-verifyOnApplication verification (FMApplication application) =
-    verification.verify application.selected
-        |> Result.fromMaybe (VerificationError application.selectionPath verification.description)
+verifyOnApplication verification ((FMApplication application) as fmApplication) =
+    case selectFromApplication verification.select fmApplication of
+        Ok (FMApplication application) ->
+            verification.verify application.selected
+                |> Result.mapError
+                    (\failure ->
+                        VerificationError
+                            { successfulSelections = application.selectionPath
+                            , verificationDescription = verification.description
+                            , verificationFailure = failure
+                            }
+                    )
+
+        Err failedApplicationSelection ->
+            Err <| VerificationSelectionNotFound failedApplicationSelection verification.description
 
 
 snapshotApplication : String -> FMApplication -> TestState
@@ -318,8 +354,19 @@ formatFailure failure =
                 ++ ". the details of the failed operation:\n"
                 ++ operationFailure
 
-        VerificationError reversePath verificationDescription ->
-            "verification failed: " ++ verificationDescription ++ " at path " ++ (describePath reversePath)
+        VerificationSelectionNotFound failedSelection verificationDescription ->
+            "verification '"
+                ++ verificationDescription
+                ++ "' failed because "
+                ++ (describeFailedApplicationSelection failedSelection)
+
+        VerificationError { successfulSelections, verificationDescription, verificationFailure } ->
+            "verification ' "
+                ++ verificationDescription
+                ++ "' failed at the following selection "
+                ++ (describePath successfulSelections)
+                ++ ". the details of the failed verification:\n"
+                ++ verificationFailure
 
         SnapshotAlreadyExists snapshotName ->
             "attempted to take snapshot '" ++ snapshotName ++ "' twice"
@@ -359,13 +406,22 @@ describePath reversePath =
 describeFailedSelection : FailedSelection -> String
 describeFailedSelection failedSelection =
     let
+        separator =
+            " ->\n"
+
         okElements =
             failedSelection.successfulSelectionSteps
                 |> List.reverse
-                |> List.map ((++) " ok")
-                |> String.join " ->\n"
+                |> List.map (\e -> e ++ " ok")
+                |> String.join separator
+
+        okElementsAndSeparator =
+            if failedSelection.successfulSelectionSteps /= [] then
+                okElements ++ separator
+            else
+                ""
     in
-        okElements ++ failedSelection.failedSelectionStep ++ " <-- THIS ONE FAILED"
+        okElementsAndSeparator ++ failedSelection.failedSelectionStep ++ " <-- THIS ONE FAILED"
 
 
 appendBasicSelector : ElementarySelectionStep -> PartialSelector -> PartialSelector

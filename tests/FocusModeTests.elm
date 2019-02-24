@@ -23,7 +23,7 @@ entering =
                     |> select (columnHeader "Import")
                     |> operate enterFocusMode
                     |> select focusModePanel
-                    |> verify (focusedFeature "Import")
+                    |> verify (focusedFeatureName "Import")
         , test "there is a button on the add feature panel" <|
             \() ->
                 (initialState initialModel)
@@ -31,7 +31,7 @@ entering =
                     |> operate (typeNewFeatureDescription "New Description")
                     |> operate pressNewFeatureFocusButton
                     |> select focusModePanel
-                    |> verify (focusedFeature "New Feature")
+                    |> verify (focusedFeatureName "New Feature")
         ]
 
 
@@ -52,9 +52,9 @@ focusMode =
                     |> operate pressNextFeatureButton
                     |> snapshot "after"
                     |> Expect.all
-                        [ verifySnapshot "before" (crossFeature initialFirstFeatureName)
-                        , verifySnapshot "after" (crossFeature initialSecondFeatureName)
-                        , verifySnapshot "after" (focusedFeature "Import")
+                        [ verifySnapshot "before" (crossFeatureName initialFirstFeatureName)
+                        , verifySnapshot "after" (crossFeatureName initialSecondFeatureName)
+                        , verifySnapshot "after" (focusedFeatureName "Import")
                         ]
         , test "one intersection is shown at a time" <|
             \() ->
@@ -151,6 +151,21 @@ focusButton =
     buildSelector "Focus Button" [ ( "<button class='focusBtn'>", TableViewHelpers.extractFocusButtonFromHeaderCell ) ]
 
 
+focusedFeatureCard : Selector
+focusedFeatureCard =
+    buildSelector "Focused Feature" [ esClassName "focusedFeature" ]
+
+
+crossFeatureCard : Selector
+crossFeatureCard =
+    buildSelector "Cross Feature" [ esClassName "crossFeature" ]
+
+
+featureNameOfCard : Selector
+featureNameOfCard =
+    buildSelector "the feature's name" [ esClassName "featureName" ]
+
+
 
 -- operations
 
@@ -194,7 +209,7 @@ pressPreviousFeatureButton =
 typeIntoTextarea : String -> Operation
 typeIntoTextarea content =
     { description = "type '" ++ content ++ "' into the only textarea"
-    , select = buildSelector "the only textarea" [ esTagName "textarea" ]
+    , select = textArea
     , operate = typeInto content
     }
 
@@ -217,65 +232,38 @@ focusOn featureName =
 -- verifications
 
 
-focusedFeature : String -> Verification
-focusedFeature expectedFocusedFeatureName =
-    { description = "the content of the element with the focusedFeature class should be " ++ expectedFocusedFeatureName
-    , verify =
-        \focusModeWrapper ->
-            focusModeWrapper
-                |> (queryByClassName "focusedFeature" >> ensureSingleton)
-                |> Maybe.andThen featureCardGetFeatureName
-                |> Maybe.map (Expect.equal expectedFocusedFeatureName)
-    }
+focusedFeatureName : String -> Verification
+focusedFeatureName =
+    verifyTextContent (combineSelectors focusedFeatureCard featureNameOfCard)
 
 
-crossFeature : String -> Verification
-crossFeature expectedCrossFeatureName =
-    { description = "the content of the element with the crossFeature class should be " ++ expectedCrossFeatureName
-    , verify =
-        \focusModeWrapper ->
-            focusModeWrapper
-                |> (queryByClassName "crossFeature" >> ensureSingleton)
-                |> Maybe.andThen featureCardGetFeatureName
-                |> Maybe.map (Expect.equal expectedCrossFeatureName)
-    }
+crossFeatureName : String -> Verification
+crossFeatureName =
+    verifyTextContent (combineSelectors crossFeatureCard featureNameOfCard)
 
 
 noFeatureTableShown : Verification
 noFeatureTableShown =
     { description = "no feature table is shown"
-    , verify = \root -> TableViewHelpers.findFeatureTableElmHtml root |> Expect.equal Nothing |> Just
+    , select = identitySelector
+    , verify = \root -> TableViewHelpers.findFeatureTableElmHtml root |> Expect.equal Nothing |> Ok
     }
 
 
 focusIntersectionContent : String -> Verification
-focusIntersectionContent expectedContent =
-    { description = "the content of the element with the intersection class should be '" ++ expectedContent ++ "'"
-    , verify =
-        \focusModeWrapper ->
-            focusModeWrapper
-                |> (focusIntersection.select >> Result.toMaybe)
-                |> Maybe.andThen (queryByTagName "textarea" >> ensureSingleton)
-                |> Maybe.andThen (getAttributes >> getStringAttribute "value")
-                |> Maybe.map (Expect.equal expectedContent)
-    }
+focusIntersectionContent =
+    verifyStringAttribute (combineSelectors focusIntersection textArea) "value"
 
 
 tableIntersectionContent : String -> String -> String -> Verification
-tableIntersectionContent rowDisplayName colDisplayName expectedContent =
-    { description = "the table intersection of '" ++ rowDisplayName ++ "' and '" ++ colDisplayName ++ "' is '" ++ expectedContent ++ "'"
-    , verify =
-        \featureTable ->
-            featureTable
-                |> ((tableIntersection rowDisplayName colDisplayName).select >> Result.toMaybe)
-                |> Maybe.andThen (queryByTagName "textarea" >> ensureSingleton)
-                |> Maybe.andThen (getAttributes >> getStringAttribute "value")
-                |> Maybe.map (Expect.equal expectedContent)
-    }
+tableIntersectionContent rowDisplayName colDisplayName =
+    verifyStringAttribute
+        (combineSelectors (tableIntersection rowDisplayName colDisplayName) textArea)
+        "value"
 
 
 
--- other helpers
+-- elementary operations & operation generators
 
 
 clickButton : Selector -> Operation
@@ -291,13 +279,6 @@ typeInto content =
     HtmlTestExtra.simulate (Event.input content)
 
 
-featureCardGetFeatureName : ElmHtml msg -> Maybe String
-featureCardGetFeatureName featureCard =
-    featureCard
-        |> (queryByClassName "featureName" >> ensureSingleton)
-        |> Maybe.andThen (extractText >> ensureSingleton)
-
-
 
 -- elementary selectors
 
@@ -310,3 +291,36 @@ esClassName className =
 esTagName : String -> ElementarySelectionStep
 esTagName tagName =
     ( "<" ++ tagName ++ "/>", queryByTagName tagName >> ensureSingleton )
+
+
+textArea : Selector
+textArea =
+    buildSelector "the only textarea" [ esTagName "textarea" ]
+
+
+
+-- elementary verification helpers & verification generators
+
+
+verifyStringAttribute : Selector -> String -> String -> Verification
+verifyStringAttribute selector attributeName expectedValue =
+    { description = "the '" ++ attributeName ++ "' attribute of " ++ selector.selectionName ++ " should be '" ++ expectedValue ++ "'"
+    , select = selector
+    , verify =
+        getAttributes
+            >> getStringAttribute attributeName
+            >> Maybe.map (Expect.equal expectedValue)
+            >> Result.fromMaybe ("attribute '" ++ attributeName ++ "' not found")
+    }
+
+
+verifyTextContent : Selector -> String -> Verification
+verifyTextContent selector expectedText =
+    { description = "the text of " ++ selector.selectionName ++ " should be " ++ expectedText
+    , select = selector
+    , verify =
+        extractText
+            >> ensureSingleton
+            >> Maybe.map (Expect.equal expectedText)
+            >> Result.fromMaybe "unambiguous text not found"
+    }
