@@ -198,7 +198,7 @@ buildSelector name steps =
         }
 
 
-{-| (>>) for selectors
+{-| (>>) for selectors, but prefer buildSelector because that generates nicer errors
 -}
 combineSelectors : Selector -> Selector -> Selector
 combineSelectors selector1 selector2 =
