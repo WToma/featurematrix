@@ -112,7 +112,17 @@ focusMode =
                     |> select focusModePanel
                     |> Helpers.repeat (operate pressNextFeatureButton) (List.length initialModel.persistent.features)
                     |> verify (crossFeatureName "New Feature")
-        , todo "hidden features still show up"
+        , test "hidden features still show up" <|
+            \() ->
+                (initialState initialModel)
+                    |> select featureTable
+                    |> select (columnHeader "Edit Intersection")
+                    |> operate clickHideButton
+                    |> focusOn "Shows Features"
+                    |> select focusModePanel
+                    |> operate pressNextFeatureButton
+                    |> select focusModePanel
+                    |> verify (crossFeatureName "Edit Intersection")
         ]
 
 
@@ -248,6 +258,14 @@ showImportExportPanel =
         buildSelector
             "Show/Hide Model Button"
             [ ( "Show/Hide Model Button", ControlPanelHelpers.findShowHideModelButton ) ]
+
+
+clickHideButton : Operation
+clickHideButton =
+    clickButton <|
+        buildSelector
+            "Hide Feature Button"
+            [ ( "Hide Feature Button", TableViewHelpers.extractHideButtonFromHeaderCell ) ]
 
 
 
