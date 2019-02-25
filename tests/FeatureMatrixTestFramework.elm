@@ -89,6 +89,7 @@ type alias FailedApplicationSelection =
     { successfulSelections : List SelectionName
     , failedSelectionName : String
     , failedSelection : FailedSelection
+    , successfulOperations : List String
     }
 
 
@@ -97,12 +98,14 @@ type Failure
     | OperationSelectionNotFound FailedApplicationSelection String
     | OperationFailed
         { successfulSelections : List SelectionName
+        , successfulOperations : List String
         , operationDescription : String
         , operationFailure : String
         }
     | VerificationSelectionNotFound FailedApplicationSelection String
     | VerificationError
         { successfulSelections : List SelectionName
+        , successfulOperations : List String
         , verificationDescription : String
         , verificationFailure : String
         }
@@ -257,6 +260,7 @@ selectFromApplication selector (FMApplication application) =
         Err failedSelection ->
             Err
                 { successfulSelections = application.selectionPath
+                , successfulOperations = application.operationDescriptions
                 , failedSelectionName = selector.selectionName
                 , failedSelection = failedSelection
                 }
@@ -284,6 +288,7 @@ operateOnApplication operation ((FMApplication application) as fmApplication) =
                     Err <|
                         OperationFailed
                             { successfulSelections = application.selectionPath
+                            , successfulOperations = application.operationDescriptions
                             , operationDescription = operation.description
                             , operationFailure = operationFailure
                             }
@@ -301,6 +306,7 @@ verifyOnApplication verification ((FMApplication application) as fmApplication) 
                     (\failure ->
                         VerificationError
                             { successfulSelections = application.selectionPath
+                            , successfulOperations = application.operationDescriptions
                             , verificationDescription = verification.description
                             , verificationFailure = failure
                             }
@@ -346,12 +352,12 @@ formatFailure failure =
                 ++ "' failed because "
                 ++ (describeFailedApplicationSelection failedSelection)
 
-        OperationFailed { successfulSelections, operationDescription, operationFailure } ->
+        OperationFailed ({ operationDescription, operationFailure } as operationFailed) ->
             "operation '"
                 ++ operationDescription
-                ++ "' failed at the following selection: "
-                ++ (describePath successfulSelections)
-                ++ ". the details of the failed operation:\n"
+                ++ "' failed\n"
+                ++ (describeWhatHappened operationFailed)
+                ++ "the details of the failed operation:\n"
                 ++ operationFailure
 
         VerificationSelectionNotFound failedSelection verificationDescription ->
@@ -360,12 +366,12 @@ formatFailure failure =
                 ++ "' failed because "
                 ++ (describeFailedApplicationSelection failedSelection)
 
-        VerificationError { successfulSelections, verificationDescription, verificationFailure } ->
+        VerificationError ({ verificationDescription, verificationFailure } as verificationError) ->
             "verification ' "
                 ++ verificationDescription
-                ++ "' failed at the following selection "
-                ++ (describePath successfulSelections)
-                ++ ". the details of the failed verification:\n"
+                ++ "' failed:\n"
+                ++ (describeWhatHappened verificationError)
+                ++ "the details of the failed verification:\n"
                 ++ verificationFailure
 
         SnapshotAlreadyExists snapshotName ->
@@ -376,13 +382,23 @@ formatFailure failure =
 
 
 describeFailedApplicationSelection : FailedApplicationSelection -> String
-describeFailedApplicationSelection { successfulSelections, failedSelectionName, failedSelection } =
+describeFailedApplicationSelection ({ failedSelectionName, failedSelection } as d) =
     "selection '"
         ++ failedSelectionName
-        ++ "' was not found afer the following selections: "
-        ++ (describePath successfulSelections)
-        ++ ". the details of the failed selection:\n"
+        ++ "' was not found\n"
+        ++ (describeWhatHappened d)
+        ++ "the details of the failed selection:\n"
         ++ (describeFailedSelection failedSelection)
+
+
+describeWhatHappened : { a | successfulSelections : List SelectionName, successfulOperations : List String } -> String
+describeWhatHappened { successfulSelections, successfulOperations } =
+    "here's what happened:\n"
+        ++ "\tthe following operations were performed:\n"
+        ++ (describeOperationsTaken "\t\t" " ->\n" successfulOperations)
+        ++ "\n\tand then selected:\n"
+        ++ (describePath "\t\t" " ->\n" successfulSelections)
+        ++ "\n"
 
 
 identitySelectorName : String
@@ -390,8 +406,8 @@ identitySelectorName =
     "FeatureMatrixTestFrameworkInternal__identity"
 
 
-describePath : List SelectionName -> String
-describePath reversePath =
+describePath : String -> String -> List SelectionName -> String
+describePath prefix separator reversePath =
     let
         filteredReversePath =
             List.filter (\x -> x /= identitySelectorName) reversePath
@@ -400,19 +416,30 @@ describePath reversePath =
             "App.view"
         else
             List.reverse filteredReversePath
-                |> String.join " -> "
+                |> List.map ((++) prefix)
+                |> String.join separator
+
+
+describeOperationsTaken : String -> String -> List String -> String
+describeOperationsTaken prefix separator reverseOperations =
+    List.reverse reverseOperations
+        |> List.map ((++) prefix)
+        |> String.join separator
 
 
 describeFailedSelection : FailedSelection -> String
 describeFailedSelection failedSelection =
     let
+        indent =
+            "\t"
+
         separator =
             " ->\n"
 
         okElements =
             failedSelection.successfulSelectionSteps
                 |> List.reverse
-                |> List.map (\e -> e ++ " ok")
+                |> List.map (\e -> indent ++ e ++ " ok")
                 |> String.join separator
 
         okElementsAndSeparator =
@@ -421,7 +448,7 @@ describeFailedSelection failedSelection =
             else
                 ""
     in
-        okElementsAndSeparator ++ failedSelection.failedSelectionStep ++ " <-- THIS ONE FAILED"
+        okElementsAndSeparator ++ indent ++ failedSelection.failedSelectionStep ++ " <-- THIS ONE FAILED"
 
 
 appendBasicSelector : ElementarySelectionStep -> PartialSelector -> PartialSelector
