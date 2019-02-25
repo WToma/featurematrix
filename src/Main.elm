@@ -119,6 +119,23 @@ update msg model =
                                 , newFeaturePanelState = NewFeaturePanel.initialModel
                             }
 
+                        displayUpdated =
+                            case model.display of
+                                Focus focusModel ->
+                                    let
+                                        newFocusModel =
+                                            FocusMode.replacePersistentModel addedFeatureModel.persistent focusModel
+
+                                        newDisplay =
+                                            newFocusModel
+                                                |> Maybe.map Focus
+                                                |> Maybe.withDefault (DisplayError "cannot show focus mode after new feature add")
+                                    in
+                                        { addedFeatureModel | display = newDisplay }
+
+                                _ ->
+                                    addedFeatureModel
+
                         maybeFocusMsg =
                             if request.enterFocusMode then
                                 Just (FocusFeature newFeature.featureId)
@@ -126,8 +143,8 @@ update msg model =
                                 Nothing
                     in
                         maybeFocusMsg
-                            |> Maybe.map ((flip update) addedFeatureModel)
-                            |> Maybe.withDefault addedFeatureModel
+                            |> Maybe.map ((flip update) displayUpdated)
+                            |> Maybe.withDefault displayUpdated
 
                 Result.Err reason ->
                     { model | newFeaturePanelState = NewFeaturePanel.setError reason model.newFeaturePanelState }

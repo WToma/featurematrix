@@ -103,7 +103,15 @@ focusMode =
                     |> select focusIntersection
                     |> operate (typeIntoTextarea "Awesome content that was edited in focus mode")
                     |> verify (importExportContentContains "Awesome content that was edited in focus mode")
-        , todo "if a new feature is added, the new feature can be reached while cycling through the features"
+        , test "if a new feature is added, the new feature can be reached while cycling through the features" <|
+            \() ->
+                (initialState initialModel)
+                    |> focusOn "Import"
+                    |> addNewFeature "New Feature" "New Description"
+                    |> defaultSelector (Just focusModePanel)
+                    |> select focusModePanel
+                    |> Helpers.repeat (operate pressNextFeatureButton) (List.length initialModel.persistent.features)
+                    |> verify (crossFeatureName "New Feature")
         , todo "hidden features still show up"
         ]
 
@@ -203,6 +211,14 @@ pressNewFeatureFocusButton =
     clickButton <| buildSelector "Add Feature and Focus Button" [ esClassName "addFeatureAndFocus" ]
 
 
+pressNewFeatureButton : Operation
+pressNewFeatureButton =
+    { description = "Click the Add Feature Button"
+    , select = identitySelector
+    , operate = ControlPanelHelpers.pressNewFeatureButton
+    }
+
+
 pressNextFeatureButton : Operation
 pressNextFeatureButton =
     clickButton <| buildSelector "Next Feature Button" [ esClassName "nextFeature" ]
@@ -241,6 +257,13 @@ showImportExportPanel =
 focusOn : String -> TestState -> TestState
 focusOn featureName =
     select featureTable >> select (columnHeader featureName) >> operate enterFocusMode
+
+
+addNewFeature : String -> String -> TestState -> TestState
+addNewFeature newFeatureName newFeatureDescription =
+    operate (typeNewFeatureName newFeatureName)
+        >> operate (typeNewFeatureDescription newFeatureDescription)
+        >> operate pressNewFeatureButton
 
 
 

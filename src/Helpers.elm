@@ -343,3 +343,21 @@ dropUntil predicate xs =
                 xs
             else
                 dropUntil predicate tail
+
+
+{-| Applies the given operation `f` to `x` exactly `n` times (negative `n` is treated as 0).
+
+    fibStep : (Int, Int) -> (Int, Int)
+    fibStep (x, y) = (max x y, x + y)
+
+    repeat fibStep 4 (0, 1) --> (3, 5)
+    repeat fibStep 0 (0, 1) --> (0, 1)
+    repeat fibStep -1 (0, 1) --> (0, 1)
+
+-}
+repeat : (a -> a) -> Int -> a -> a
+repeat f n x =
+    if n <= 0 then
+        x
+    else
+        repeat f (n - 1) (f x)
