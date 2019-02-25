@@ -20,10 +20,10 @@ entering =
             \() ->
                 (initialState initialModel)
                     |> select featureTable
-                    |> select (columnHeader "Import")
+                    |> select (columnHeader initialSecondFeatureName)
                     |> operate enterFocusMode
                     |> select focusModePanel
-                    |> verify (focusedFeatureName "Import")
+                    |> verify (focusedFeatureName initialSecondFeatureName)
         , test "there is a button on the add feature panel" <|
             \() ->
                 (initialState initialModel)
@@ -41,32 +41,32 @@ focusMode =
         [ test "there is no feature table" <|
             \() ->
                 (initialState initialModel)
-                    |> focusOn "Import"
+                    |> focusOn initialSecondFeatureName
                     |> verify noFeatureTableShown
         , test "there are buttons to go to the previous / next feature, the other feature for the intersection is fixed" <|
             \() ->
                 (initialState initialModel)
                     |> defaultSelector (Just focusModePanel)
-                    |> focusOn "Import"
+                    |> focusOn initialSecondFeatureName
                     |> snapshot "before"
                     |> operate pressNextFeatureButton
                     |> snapshot "after"
                     |> Expect.all
                         [ verifySnapshot "before" (crossFeatureName initialFirstFeatureName)
                         , verifySnapshot "after" (crossFeatureName initialSecondFeatureName)
-                        , verifySnapshot "after" (focusedFeatureName "Import")
+                        , verifySnapshot "after" (focusedFeatureName initialSecondFeatureName)
                         ]
         , test "one intersection is shown at a time" <|
             \() ->
                 (initialState initialModel)
                     |> select featureTable
-                    |> select (tableIntersection "Import" initialFirstFeatureName)
+                    |> select (tableIntersection initialSecondFeatureName initialFirstFeatureName)
                     |> operate (typeIntoTextarea "First Awesome Content")
                     |> select featureTable
-                    |> select (tableIntersection "Import" initialSecondFeatureName)
+                    |> select (tableIntersection initialSecondFeatureName initialSecondFeatureName)
                     |> operate (typeIntoTextarea "Second Awesome Content")
                     |> defaultSelector (Just focusModePanel)
-                    |> focusOn "Import"
+                    |> focusOn initialSecondFeatureName
                     |> snapshot "first focus"
                     |> operate pressNextFeatureButton
                     |> snapshot "second focus"
@@ -78,7 +78,7 @@ focusMode =
             \() ->
                 (initialState initialModel)
                     |> defaultSelector (Just focusModePanel)
-                    |> focusOn "Import"
+                    |> focusOn initialSecondFeatureName
                     |> select focusIntersection
                     |> operate (typeIntoTextarea "Awesome content that was edited in focus mode")
                     |> operate pressNextFeatureButton
@@ -87,26 +87,26 @@ focusMode =
         , test "there is a button to return to table view; intersections edited in focus mode are preserved in table view" <|
             \() ->
                 (initialState initialModel)
-                    |> focusOn "Import"
+                    |> focusOn initialSecondFeatureName
                     |> select focusModePanel
                     |> select focusIntersection
                     |> operate (typeIntoTextarea "Awesome content edited in focus mode")
                     |> select focusModePanel
                     |> operate pressReturnToTableViewButton
                     |> select featureTable
-                    |> verify (tableIntersectionContent "Import" initialFirstFeatureName "Awesome content edited in focus mode")
+                    |> verify (tableIntersectionContent initialSecondFeatureName initialFirstFeatureName "Awesome content edited in focus mode")
         , test "export works the same way as in table view (as in, updates immediately if shown while editing)" <|
             \() ->
                 (initialState initialModel)
                     |> operate showImportExportPanel
-                    |> focusOn "Import"
+                    |> focusOn initialSecondFeatureName
                     |> select focusIntersection
                     |> operate (typeIntoTextarea "Awesome content that was edited in focus mode")
                     |> verify (importExportContentContains "Awesome content that was edited in focus mode")
         , test "if a new feature is added, the new feature can be reached while cycling through the features" <|
             \() ->
                 (initialState initialModel)
-                    |> focusOn "Import"
+                    |> focusOn initialSecondFeatureName
                     |> addNewFeature "New Feature" "New Description"
                     |> defaultSelector (Just focusModePanel)
                     |> select focusModePanel
@@ -116,13 +116,13 @@ focusMode =
             \() ->
                 (initialState initialModel)
                     |> select featureTable
-                    |> select (columnHeader "Edit Intersection")
+                    |> select (columnHeader initialSecondFeatureName)
                     |> operate clickHideButton
-                    |> focusOn "Shows Features"
+                    |> focusOn initialFirstFeatureName
                     |> select focusModePanel
                     |> operate pressNextFeatureButton
                     |> select focusModePanel
-                    |> verify (crossFeatureName "Edit Intersection")
+                    |> verify (crossFeatureName initialSecondFeatureName)
         ]
 
 
